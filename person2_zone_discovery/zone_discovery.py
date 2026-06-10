@@ -65,41 +65,109 @@ def load_records(input_path: str) -> List[Record]:
     return data
 
 
-def group_records_by_moment(records: List[Record]) -> List[Observation]:
-    grouped = defaultdict(list)
+def combine_group_into_observation(records_at_same_moment: List[Record]) -> Observation:
+    device_id = records_at_same_moment[0]["device_id"]
+
+    feature_values = {}
+    feature_weights = {}
+    confidences = []
+    timestamps = []
+
+    for record in records_at_same_moment:
+        source_type = record["source_type"]
+        signal_vector = record["signal_vector"]
+        confidence = float(record["confidence"])
+        timestamp_ms = int(record["timestamp_ms"])
+
+        confidences.append(confidence)
+        timestamps.append(timestamp_ms)
+
+        for index, value in enumerate(signal_vector):
+            feature_name = f"{source_type}_{index}"
+
+            if feature_name not in feature_values:
+                feature_values[feature_name] = 0.0
+                feature_weights[feature_name] = 0.0
+
+            feature_values[feature_name] += float(value) * confidence
+            feature_weights[feature_name] += confidence
+
+        feature_values[f"{source_type}_present"] = 1.0
+        feature_weights[f"{source_type}_present"] = 1.0
+
+        feature_values[f"{source_type}_confidence"] = confidence
+        feature_weights[f"{source_type}_confidence"] = 1.0
+
+    final_features = {}
+
+    for feature_name in feature_values:
+        if feature_weights[feature_name] == 0:
+            final_features[feature_name] = 0.0
+        else:
+            final_features[feature_name] = (
+                feature_values[feature_name] / feature_weights[feature_name]
+            )
+
+    representative_timestamp = round(sum(timestamps) / len(timestamps))
+
+    return {
+        "timestamp_ms": representative_timestamp,
+        "device_id": device_id,
+        "features": final_features,
+        "input_confidence": sum(confidences) / len(confidences),
+    }
+
+
+def group_records_by_moment(
+    records: List[Record],
+    time_window_ms: int = 250,
+) -> List[Observation]:
+    records_by_device = defaultdict(list)
 
     for record in records:
-        key = (record["device_id"], record["timestamp_ms"])
-        grouped[key].append(record)
+        records_by_device[record["device_id"]].append(record)
 
     combined_observations = []
 
-    for (device_id, timestamp_ms), records_at_same_moment in grouped.items():
-        feature_values = {}
-        confidences = []
+    for device_id, device_records in records_by_device.items():
+        device_records.sort(key=lambda record: record["timestamp_ms"])
 
-        for record in records_at_same_moment:
+        current_group = []
+        current_group_start_time = None
+        current_group_sources = set()
+
+        for record in device_records:
+            timestamp_ms = record["timestamp_ms"]
             source_type = record["source_type"]
-            signal_vector = record["signal_vector"]
-            confidence = float(record["confidence"])
 
-            confidences.append(confidence)
+            if not current_group:
+                current_group = [record]
+                current_group_start_time = timestamp_ms
+                current_group_sources = {source_type}
+                continue
 
-            for index, value in enumerate(signal_vector):
-                feature_name = f"{source_type}_{index}"
-                feature_values[feature_name] = float(value)
+            close_in_time = (
+                abs(timestamp_ms - current_group_start_time) <= time_window_ms
+            )
 
-            feature_values[f"{source_type}_present"] = 1.0
-            feature_values[f"{source_type}_confidence"] = confidence
+            new_source_for_this_moment = source_type not in current_group_sources
 
-        combined_observations.append(
-            {
-                "timestamp_ms": timestamp_ms,
-                "device_id": device_id,
-                "features": feature_values,
-                "input_confidence": sum(confidences) / len(confidences),
-            }
-        )
+            if close_in_time and new_source_for_this_moment:
+                current_group.append(record)
+                current_group_sources.add(source_type)
+            else:
+                combined_observations.append(
+                    combine_group_into_observation(current_group)
+                )
+
+                current_group = [record]
+                current_group_start_time = timestamp_ms
+                current_group_sources = {source_type}
+
+        if current_group:
+            combined_observations.append(
+                combine_group_into_observation(current_group)
+            )
 
     combined_observations.sort(
         key=lambda observation: (
@@ -182,8 +250,12 @@ def compute_zone_confidence(
 def discover_zones(
     records: List[Record],
     max_zones: int = 8,
+    time_window_ms: int = 250,
 ) -> Tuple[List[Record], List[Record]]:
-    combined_observations = group_records_by_moment(records)
+    combined_observations = group_records_by_moment(
+    records,
+    time_window_ms=time_window_ms,
+)
 
     if len(combined_observations) == 0:
         return [], []
@@ -290,13 +362,21 @@ def main() -> None:
         help="Maximum number of zones to try.",
     )
 
+    parser.add_argument(
+    "--time-window-ms",
+    type=int,
+    default=250,
+    help="Maximum time difference, in milliseconds, for combining different-source records from the same device.",
+    )
+
     args = parser.parse_args()
 
     records = load_records(args.input)
 
     assignments, zone_definitions = discover_zones(
-        records,
-        max_zones=args.max_zones,
+    records,
+    max_zones=args.max_zones,
+    time_window_ms=args.time_window_ms,
     )
 
     save_json(assignments, args.assignments_output)
