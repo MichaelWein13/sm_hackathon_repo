@@ -1,0 +1,43 @@
+openapi: 3.0.0
+info:
+  title: Zone Insights API
+  description: API for retrieving predictive bottleneck and congestion insights for tracking zones.
+  version: 1.0.0
+paths:
+  /analytics/insights:
+    get:
+      summary: Get zone insights
+      description: Returns an array of generated predictive insights and risk assessments for specific zones.
+      responses:
+        '200':
+          description: Successful response containing an array of zone insights.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ZoneInsight'
+              example:
+                - " zone_id ": "zone_3"
+                  " insight_type ": "bottleneck_risk"
+                  " message ": " Zone 3 is likely to become congested soon ."
+                  " confidence ": 0.77
+
+components:
+  schemas:
+    ZoneInsight:
+      type: object
+      properties:
+        " zone_id ":
+          type: string
+          description: The unique identifier of the zone.
+        " insight_type ":
+          type: string
+          description: The category of the generated insight (e.g., bottleneck_risk).
+        " message ":
+          type: string
+          description: A human-readable description explaining the insight.
+        " confidence ":
+          type: number
+          format: float
+          description: The confidence score of the prediction, ranging from 0.0 to 1.0.
