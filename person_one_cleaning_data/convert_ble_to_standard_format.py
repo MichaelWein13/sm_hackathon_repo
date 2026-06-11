@@ -139,7 +139,9 @@ def process_trajectory_file(filepath: str, device_id: str, sensor_order: List[st
 def main():
     """Main conversion process."""
     # Define trajectory files in the trk directory
-    trk_dir = Path("Position-Annotated-BLE-RSSI-Dataset/trk")
+    # Get the directory where this script is located
+    script_dir = Path(__file__).parent
+    trk_dir = script_dir / "Position-Annotated-BLE-RSSI-Dataset" / "trk"
     
     trajectory_files = [
         ("rectangular_with_rotation_all_sensors.mbd", "rectangular_with_rotation"),
