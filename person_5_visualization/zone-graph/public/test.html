@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FloorFlow — Discovering Operational Structure from Wireless Signals</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --paper: #ECEFEC;
+      --paper-2: #E2E6E2;
+      --ink: #0E2128;
+      --ink-2: #163A40;
+      --muted: #56686B;
+      --line: #C6CEC9;
+      --signal: #13B7A4;
+      /* discovered structure */
+      --signal-deep: #0C8576;
+      --alert: #EE9A33;
+      /* bottleneck / emergency */
+      --display: 'Space Grotesk', sans-serif;
+      --body: 'IBM Plex Sans', sans-serif;
+      --mono: 'IBM Plex Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 1px 1px, rgba(14, 33, 40, .05) 1px, transparent 0) 0 0 / 22px 22px,
+        var(--paper);
+      color: var(--ink);
+      font-family: var(--body);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .sheet {
+      max-width: 840px;
+      margin: 32px auto;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      box-shadow: 0 1px 0 rgba(14, 33, 40, .04), 0 26px 60px -36px rgba(14, 33, 40, .45);
+    }
+
+    /* ---------- masthead ---------- */
+    .mast {
+      padding: 30px 40px 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .eyebrow {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      color: var(--signal-deep);
+    }
+
+    .mast {
+      padding: 26px 40px 0;
+      display: grid;
+      grid-template-columns: 1.55fr 1fr;
+      gap: 28px;
+      align-items: end;
+    }
+
+    .brand .eyebrow {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .wm {
+      font-family: var(--display);
+      font-weight: 700;
+      font-size: clamp(46px, 9vw, 78px);
+      letter-spacing: -.03em;
+      line-height: .9;
+      margin: 2px 0 0;
+      color: var(--ink);
+    }
+
+    .wm .flow {
+      color: var(--signal-deep);
+    }
+
+    .top-left-logo {
+      position: fixed;
+      top: 18px;
+      left: 18px;
+      z-index: 100;
+    }
+
+    .lede {
+      margin: 12px 0 0;
+      font-family: var(--display);
+      font-weight: 500;
+      font-size: clamp(15px, 2.1vw, 18px);
+      letter-spacing: -.01em;
+      color: var(--ink-2);
+      max-width: 40ch;
+    }
+
+    .tagside {
+      padding-bottom: 6px;
+      border-left: 1px solid var(--line);
+      padding-left: 24px;
+    }
+
+    .tagside .tagk {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: var(--signal-deep);
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .tagvision {
+      margin: 0;
+      font-family: var(--display);
+      font-weight: 600;
+      font-size: clamp(16px, 2.3vw, 20px);
+      letter-spacing: -.015em;
+      line-height: 1.2;
+      color: var(--ink);
+    }
+
+    .tagvision b {
+      color: var(--signal-deep);
+      font-weight: 600;
+    }
+
+    .rule {
+      height: 1px;
+      background: var(--line);
+      margin: 0 40px;
+    }
+
+    /* ---------- hero band: the question shift + the graphic ---------- */
+    .hero {
+      background: var(--ink);
+      color: var(--paper);
+      display: grid;
+      grid-template-columns: 1.35fr 1fr;
+    }
+
+    .hero .ask {
+      padding: 24px 28px 24px 40px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 18px;
+    }
+
+    .ask .q {
+      position: relative;
+    }
+
+    .ask .tag {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: #7FA0A2;
+      display: block;
+      margin-bottom: 7px;
+    }
+
+    .ask .old {
+      font-family: var(--display);
+      font-weight: 500;
+      font-size: clamp(18px, 2.5vw, 21px);
+      color: #9FB4B5;
+      text-decoration: line-through;
+      text-decoration-color: rgba(159, 180, 181, .5);
+      letter-spacing: -.01em;
+    }
+
+    .ask .new {
+      font-family: var(--display);
+      font-weight: 600;
+      font-size: clamp(22px, 3.4vw, 30px);
+      letter-spacing: -.02em;
+      color: var(--paper);
+      line-height: 1.12;
+    }
+
+    .ask .new b {
+      color: var(--signal);
+      font-weight: 600;
+    }
+
+    .hero .vis {
+      padding: 14px 18px;
+      border-left: 1px solid rgba(255, 255, 255, .08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+    }
+
+    .hero .vis svg {
+      width: 100%;
+      max-width: 210px;
+      height: auto;
+      display: block;
+    }
+
+    /* ---------- body sections ---------- */
+    section {
+      padding: 24px 40px;
+    }
+
+    .kicker {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: var(--signal-deep);
+      margin: 0 0 12px;
+    }
+
+    h2 {
+      font-family: var(--display);
+      font-weight: 600;
+      letter-spacing: -.02em;
+      font-size: clamp(21px, 3vw, 27px);
+      line-height: 1.12;
+      margin: 0 0 12px;
+      color: var(--ink);
+    }
+
+    p.body {
+      font-size: 15px;
+      color: var(--ink-2);
+      margin: 0 0 12px;
+      max-width: 64ch;
+    }
+
+    p.body .hl {
+      color: var(--ink);
+      font-weight: 600;
+      box-shadow: inset 0 -.5em 0 rgba(19, 183, 164, .18);
+    }
+
+    /* discovered-structure list — node markers, not numbers */
+    .discover {
+      list-style: none;
+      margin: 6px 0 0;
+      padding: 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2px 34px;
+    }
+
+    .discover li {
+      display: flex;
+      gap: 13px;
+      align-items: flex-start;
+      padding: 13px 0;
+      border-top: 1px solid var(--line);
+      font-size: 14.5px;
+      color: var(--ink-2);
+    }
+
+    .discover li .dot {
+      flex: 0 0 auto;
+      width: 11px;
+      height: 11px;
+      margin-top: 4px;
+      border-radius: 50%;
+      background: var(--paper);
+      border: 2.5px solid var(--signal);
+      position: relative;
+    }
+
+    .discover li.bn .dot {
+      border-color: var(--alert);
+    }
+
+    .discover li b {
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    /* sensing callout */
+    .callout {
+      background: var(--paper-2);
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--signal);
+      padding: 22px 24px;
+      margin: 0 40px 30px;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 22px;
+      align-items: center;
+    }
+
+    .callout .arc {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.7;
+      white-space: nowrap;
+    }
+
+    .callout .arc b {
+      color: var(--signal-deep);
+      font-size: 13px;
+      display: block;
+    }
+
+    .callout .arc .sp {
+      color: var(--line);
+    }
+
+    .callout p {
+      margin: 0;
+      font-size: 14.5px;
+      color: var(--ink-2);
+    }
+
+    .callout p b {
+      color: var(--ink);
+    }
+
+    /* two-zeros badge strip */
+    .zeros {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 0 40px 20px;
+    }
+
+    .zeros .badge {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      background: var(--paper-2);
+      border: 1px solid var(--line);
+      padding: 5px 9px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      line-height: 1;
+    }
+
+    .zeros .badge .z {
+      font-family: var(--mono);
+      font-weight: 500;
+      font-size: 9px;
+      letter-spacing: .08em;
+      color: var(--signal-deep);
+      line-height: 1;
+    }
+
+    /* prior-work ladder */
+    .ladder .kicker {
+      color: var(--signal-deep);
+    }
+
+    .laddergrid {
+      display: grid;
+      grid-template-columns: 1.7fr 1fr;
+      gap: 0;
+      align-items: start;
+      margin-top: 2px;
+    }
+
+    .laddergrid .rungs {
+      min-width: 0;
+    }
+
+    .rung {
+      display: grid;
+      grid-template-columns: 92px 1fr;
+      gap: 12px;
+      align-items: start;
+      padding: 11px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .rung .lvl {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding-top: 2px;
+    }
+
+    .rung .q {
+      font-family: var(--display);
+      font-weight: 600;
+      font-size: 15px;
+      color: var(--ink-2);
+      margin: 0 0 3px;
+      letter-spacing: -.01em;
+    }
+
+    .rung .s {
+      font-size: 12.5px;
+      color: var(--muted);
+      margin: 0;
+    }
+
+    .rung.ours {
+      border-top: 2px solid var(--signal);
+    }
+
+    .rung.ours .lvl {
+      color: var(--signal-deep);
+    }
+
+    .rung.ours .q {
+      color: var(--ink);
+    }
+
+    .rung.ours .q::after {
+      content: "FloorFlow is here";
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: .12em;
+      color: var(--paper);
+      background: var(--signal-deep);
+      padding: 2px 6px;
+      margin-left: 10px;
+      vertical-align: middle;
+      border-radius: 2px;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .ladnote {
+      margin: 14px 0 0;
+      font-size: 12.5px;
+      color: var(--ink-2);
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+    }
+
+    .ladnote b {
+      color: var(--ink);
+    }
+
+    /* slab: the shift (left) + where it matters most (right) on one row */
+    .slab {
+      display: grid;
+      grid-template-columns: 1.6fr 1fr;
+      gap: 0;
+      align-items: start;
+    }
+
+    .slab .shift {
+      padding-right: 26px;
+    }
+
+    .slab .shift .body {
+      margin-bottom: 0;
+    }
+
+    /* full-width prior-work rungs, 2 across to use the line and save height */
+    .rungs2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0 32px;
+      margin-top: 2px;
+    }
+
+    /* emergency use-cases sidebar (titles only) */
+    .usecases {
+      border-left: 1px solid var(--line);
+      padding-left: 24px;
+      margin-left: 24px;
+    }
+
+    .usecases .uck {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--alert);
+      margin: 0 0 5px;
+    }
+
+    .usecases .ucsub {
+      font-family: var(--display);
+      font-weight: 600;
+      font-size: 14px;
+      letter-spacing: -.01em;
+      color: var(--ink);
+      margin: 0 0 10px;
+      line-height: 1.18;
+    }
+
+    .usecases ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .usecases li {
+      display: flex;
+      gap: 9px;
+      padding: 9px 0;
+      border-top: 1px solid var(--line);
+      font-family: var(--display);
+      font-weight: 500;
+      font-size: 13px;
+      color: var(--ink);
+      line-height: 1.25;
+    }
+
+    .usecases li::before {
+      content: "";
+      flex: 0 0 auto;
+      width: 6px;
+      height: 6px;
+      margin-top: 5px;
+      border-radius: 50%;
+      background: var(--alert);
+    }
+
+    @media (max-width:680px) {
+      .zeros {
+        padding-left: 22px;
+        padding-right: 22px;
+      }
+
+      .rung {
+        grid-template-columns: 1fr;
+        gap: 4px;
+      }
+    }
+
+    /* emergency scenarios */
+    .field {
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    .field .kicker {
+      color: var(--alert);
+    }
+
+    .field h2 {
+      color: var(--paper);
+    }
+
+    .field .sub {
+      color: #A9BDBE;
+      font-size: 13.5px;
+      max-width: 62ch;
+      margin: 0 0 18px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: rgba(255, 255, 255, .1);
+      border: 1px solid rgba(255, 255, 255, .1);
+    }
+
+    .card {
+      background: var(--ink);
+      padding: 16px 18px;
+    }
+
+    .card .ctag {
+      font-family: var(--mono);
+      font-size: 9.5px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--alert);
+      margin-bottom: 7px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card .ctag::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      background: var(--alert);
+      border-radius: 50%;
+      flex: 0 0 auto;
+    }
+
+    .card h3 {
+      font-family: var(--display);
+      font-weight: 600;
+      font-size: 15px;
+      letter-spacing: -.01em;
+      margin: 0 0 6px;
+      color: var(--paper);
+    }
+
+    .card p {
+      margin: 0;
+      font-size: 12.5px;
+      line-height: 1.45;
+      color: #B7C7C8;
+    }
+
+    /* closing */
+    .close {
+      text-align: center;
+      padding: 40px;
+    }
+
+    .close .v {
+      font-family: var(--display);
+      font-weight: 600;
+      letter-spacing: -.02em;
+      font-size: clamp(22px, 3.4vw, 30px);
+      line-height: 1.18;
+      color: var(--ink);
+      margin: 0 auto;
+      max-width: 24ch;
+    }
+
+    .close .v b {
+      color: var(--signal-deep);
+      font-weight: 600;
+    }
+
+    .foot {
+      border-top: 1px solid var(--line);
+      padding: 16px 40px;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      font-family: var(--mono);
+      font-size: 10.5px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    /* ---------- SVG animation ---------- */
+    @keyframes draw {
+      to {
+        stroke-dashoffset: 0;
+      }
+    }
+
+    @keyframes twinkle {
+
+      0%,
+      100% {
+        opacity: .18;
+      }
+
+      50% {
+        opacity: .5;
+      }
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        r: 6;
+        opacity: 1;
+      }
+
+      50% {
+        r: 9;
+        opacity: .55;
+      }
+    }
+
+    .edge {
+      stroke-dasharray: 180;
+      stroke-dashoffset: 180;
+      animation: draw 1.1s ease-out forwards;
+    }
+
+    .e2 {
+      animation-delay: .15s;
+    }
+
+    .e3 {
+      animation-delay: .3s;
+    }
+
+    .e4 {
+      animation-delay: .45s;
+    }
+
+    .e5 {
+      animation-delay: .6s;
+    }
+
+    .e6 {
+      animation-delay: .75s;
+    }
+
+    .obs {
+      animation: twinkle 3.2s ease-in-out infinite;
+    }
+
+    .bottleneck {
+      animation: pulse 2.2s ease-in-out infinite;
+    }
+
+    @media (max-width:680px) {
+      .sheet {
+        margin: 0;
+        border: none;
+      }
+
+      .mast,
+      section {
+        padding-left: 22px;
+        padding-right: 22px;
+      }
+
+      .mast {
+        grid-template-columns: 1fr;
+        gap: 18px;
+      }
+
+      .tagside {
+        border-left: none;
+        border-top: 1px solid var(--line);
+        padding-left: 0;
+        padding-top: 16px;
+      }
+
+      .rule {
+        margin-left: 22px;
+        margin-right: 22px;
+      }
+
+      .hero {
+        grid-template-columns: 1fr;
+      }
+
+      .hero .ask {
+        padding: 24px 22px;
+      }
+
+      .hero .vis {
+        border-left: none;
+        border-top: 1px solid rgba(255, 255, 255, .08);
+        padding: 20px;
+      }
+
+      .laddergrid {
+        grid-template-columns: 1fr;
+        gap: 0;
+      }
+
+      .slab {
+        grid-template-columns: 1fr;
+        gap: 18px;
+      }
+
+      .slab .shift {
+        padding-right: 0;
+      }
+
+      .rungs2 {
+        grid-template-columns: 1fr;
+        gap: 0;
+      }
+
+      .usecases {
+        border-left: none;
+        border-top: 1px solid var(--line);
+        padding-left: 0;
+        margin-left: 0;
+        padding-top: 16px;
+        margin-top: 16px;
+      }
+
+      .rung {
+        grid-template-columns: 84px 1fr;
+      }
+
+      .cards {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (prefers-reduced-motion:reduce) {
+      .edge {
+        animation: none;
+        stroke-dashoffset: 0;
+      }
+
+      .obs,
+      .bottleneck {
+        animation: none;
+      }
+    }
+
+    @media print {
+      body {
+        background: var(--paper);
+      }
+
+      .sheet {
+        box-shadow: none;
+        border: none;
+        margin: 0;
+        max-width: 100%;
+      }
+
+      .edge {
+        animation: none;
+        stroke-dashoffset: 0;
+      }
+
+      .obs,
+      .bottleneck {
+        animation: none;
+      }
+
+      .hero,
+      .field,
+      .card {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="sheet">
+
+    <header class="mast">
+      <div class="brand">
+        <span class="eyebrow">Spatial intelligence · Wireless sensing</span>
+        <h1 class="wm">Floor<span class="flow">Flow</span></h1>
+        <p class="lede">It learns how a building actually works — and where it's about to fail — from the signals
+          already in the air.</p>
+      </div>
+      <aside class="tagside">
+        <span class="tagk">The vision</span>
+        <p class="tagvision">Buildings that <b>explain themselves</b> — given only the signals already in the air.</p>
+      </aside>
+    </header>
+
+    <div class="zeros">
+      <span class="badge">Hardware to install <span class="z">none needed</span></span>
+      <span class="badge">Floor plan <span class="z">none needed</span></span>
+      <span class="badge">Manual zone labeling <span class="z">none needed</span></span>
+    </div>
+
+    <div class="top-left-logo">
+      <h1 class="wm">Floor<span class="flow">Flow</span></h1>
+    </div>
+    <div class="rule"></div>
+
+    <!-- HERO: the question shift + signature visual -->
+    <div class="hero">
+      <div class="ask">
+        <div class="q">
+          <span class="tag">Every other system asks</span>
+          <div class="old">Where is this person?</div>
+        </div>
+        <div class="q">
+          <span class="tag">We ask</span>
+          <div class="new">What is this <b>building</b>, and how does it <b>function</b>?</div>
+        </div>
+      </div>
+      <div class="vis"
+        aria-label="Wireless observations resolving into a learned graph of zones, corridors, and a flagged bottleneck">
+        <svg viewBox="0 0 320 300" xmlns="http://www.w3.org/2000/svg" role="img">
+          <!-- building footprint -->
+          <g stroke="rgba(255,255,255,.16)" fill="none" stroke-width="1">
+            <path d="M30 40 H250 V120 H290 V260 H30 Z" />
+            <line x1="30" y1="120" x2="250" y2="120" />
+            <line x1="140" y1="40" x2="140" y2="120" />
+            <line x1="160" y1="120" x2="160" y2="260" />
+          </g>
+          <!-- raw observations (faint dots) -->
+          <g fill="rgba(255,255,255,.5)">
+            <circle class="obs" cx="62" cy="70" r="1.6" style="animation-delay:.1s" />
+            <circle class="obs" cx="96" cy="58" r="1.6" style="animation-delay:.6s" />
+            <circle class="obs" cx="120" cy="92" r="1.6" style="animation-delay:1.1s" />
+            <circle class="obs" cx="190" cy="64" r="1.6" style="animation-delay:.3s" />
+            <circle class="obs" cx="222" cy="98" r="1.6" style="animation-delay:.9s" />
+            <circle class="obs" cx="78" cy="170" r="1.6" style="animation-delay:1.4s" />
+            <circle class="obs" cx="60" cy="220" r="1.6" style="animation-delay:.5s" />
+            <circle class="obs" cx="110" cy="240" r="1.6" style="animation-delay:1.0s" />
+            <circle class="obs" cx="210" cy="180" r="1.6" style="animation-delay:.2s" />
+            <circle class="obs" cx="250" cy="220" r="1.6" style="animation-delay:.8s" />
+            <circle class="obs" cx="150" cy="150" r="1.6" style="animation-delay:1.3s" />
+            <circle class="obs" cx="174" cy="210" r="1.6" style="animation-delay:.45s" />
+          </g>
+          <!-- learned graph edges (weighted) -->
+          <g fill="none" stroke="#13B7A4" stroke-linecap="round">
+            <line class="edge" x1="92" y1="74" x2="200" y2="80" stroke-width="4" />
+            <line class="edge e2" x1="92" y1="74" x2="86" y2="190" stroke-width="3" />
+            <line class="edge e3" x1="86" y1="190" x2="150" y2="150" stroke-width="2" />
+            <line class="edge e4" x1="150" y1="150" x2="200" y2="80" stroke-width="2" />
+            <line class="edge e5" x1="150" y1="150" x2="220" y2="205" stroke-width="3.5" />
+            <line class="edge e6" x1="86" y1="190" x2="220" y2="205" stroke-width="1.5" />
+          </g>
+          <!-- nodes -->
+          <g>
+            <circle cx="92" cy="74" r="6.5" fill="#0E2128" stroke="#13B7A4" stroke-width="2.5" />
+            <circle cx="200" cy="80" r="6.5" fill="#0E2128" stroke="#13B7A4" stroke-width="2.5" />
+            <circle cx="86" cy="190" r="6.5" fill="#0E2128" stroke="#13B7A4" stroke-width="2.5" />
+            <!-- gathering node (larger) -->
+            <circle cx="220" cy="205" r="11" fill="rgba(19,183,164,.2)" stroke="#13B7A4" stroke-width="2.5" />
+            <circle cx="220" cy="205" r="4" fill="#13B7A4" />
+            <!-- bottleneck node (alert, pulsing) -->
+            <circle class="bottleneck" cx="150" cy="150" r="6" fill="#0E2128" stroke="#EE9A33" stroke-width="3" />
+          </g>
+          <!-- labels -->
+          <g font-family="'IBM Plex Mono',monospace" font-size="8.5" letter-spacing="1">
+            <text x="222" y="222" fill="#13B7A4">GATHERING</text>
+            <text x="118" y="138" fill="#EE9A33">BOTTLENECK</text>
+          </g>
+        </svg>
+      </div>
+    </div>
+
+    <!-- slab: the shift (left) + where it matters most (right) -->
+    <section class="slab">
+      <div class="shift">
+        <p class="kicker">The shift</p>
+        <h2>Localization isn't the answer. It's the raw material.</h2>
+        <p class="body">Every positioning system assumes the building is already known and answers one narrow,
+          well-studied question: where is a person inside that known structure? FloorFlow asks what happens when <span
+            class="hl">the structure itself is unknown.</span> We treat each position as one data point toward a bigger
+          picture, and the output isn't coordinates — it's a <span class="hl">decision-ready graph of how the building
+            operates and where it's about to fail:</span> the corridor that's clogging, the doorway every route funnels
+          through, the room people can't get out of.</p>
+      </div>
+      <aside class="usecases">
+        <p class="uck">Where it matters most</p>
+        <p class="ucsub">Emergencies in unmapped space — when the floor plan is missing, outdated, or no longer true.
+        </p>
+        <ul>
+          <li>Crowd crushes, caught before they form</li>
+          <li>Where hospital devices really are</li>
+          <li>Earthquake field hospitals &amp; pop-up shelters</li>
+          <li>Tracing a hazmat or biological release</li>
+        </ul>
+      </aside>
+    </section>
+
+    <div class="rule"></div>
+
+    <!-- prior-work ladder: full width, 2x2 rungs -->
+    <section class="ladder">
+      <p class="kicker">Where this sits — and why it isn't another zone-finder</p>
+      <h2>One rung above the rest of the field.</h2>
+      <div class="rungs2">
+        <div class="rung">
+          <span class="lvl">Solved · saturated</span>
+          <div>
+            <p class="q">"Where is this person?"</p>
+            <p class="s">Localization. Decades of Wi-Fi, BLE, and sub-decimeter UWB work.</p>
+          </div>
+        </div>
+        <div class="rung">
+          <span class="lvl">Published</span>
+          <div>
+            <p class="q">"What are the regions?"</p>
+            <p class="s">Unsupervised zone discovery and crowd-density detection from wireless data. Stops at a map of
+              regions.</p>
+          </div>
+        </div>
+        <div class="rung">
+          <span class="lvl">Assumes a map</span>
+          <div>
+            <p class="q">"Route people out, given the layout."</p>
+            <p class="s">Congestion-aware evacuation systems — but they need the floor plan to already exist.</p>
+          </div>
+        </div>
+        <div class="rung ours">
+          <span class="lvl">Our wedge</span>
+          <div>
+            <p class="q">"How does this building behave — and where will it fail?"</p>
+            <p class="s">The decision-ready operational graph those systems need, built with no prior map and no new
+              hardware.</p>
+          </div>
+        </div>
+      </div>
+      <p class="ladnote">It runs on the Wi-Fi and BLE a building already broadcasts — nothing to install. Denser sensing
+        like <b>UWB is upside, not a prerequisite:</b> as signals get richer, the map only gets sharper, so better
+        technology makes the idea stronger rather than obsolete.</p>
+    </section>
+
+  </div>
+</body>
+
+</html>
