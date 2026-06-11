@@ -33,7 +33,13 @@ components:
           description: The unique identifier of the zone.
         " insight_type ":
           type: string
-          description: The category of the generated insight (e.g., bottleneck_risk).
+          description: The category of the generated insight.
+          enum:
+            - bottleneck_risk
+            - anomaly
+            - high_dwell_zone
+            - unexpected_transition
+            - congestion_forecast
         " message ":
           type: string
           description: A human-readable description explaining the insight.
