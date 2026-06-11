@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import { forceCollide } from 'd3-force';
 
-import { fetchGraphData, fetchInsights } from './Api'; // Adjust casing to match your file
+import { fetchGraphData } from './Api'; // Adjust casing to match your file
 
 
 export default function App() {
@@ -14,16 +14,50 @@ export default function App() {
 
   // Fetch data
   useEffect(() => {
-    Promise.all([fetchGraphData(), fetchInsights()])
-      .then(([graphResponse, insightsResponse]) => {
+    fetchGraphData()
+      .then(graphResponse => {
         setRawData(graphResponse);
-        setInsights(insightsResponse);
         setLoading(false);
       })
       .catch(err => {
-        console.error("Failed to load data:", err);
+        console.error("Failed to load graph data:", err);
         setLoading(false);
       });
+  }, []);
+
+  // Subscribe to insight updates over WebSocket.
+  useEffect(() => {
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const socket = new WebSocket(`${protocol}://${window.location.host}/analytics/insights`);
+
+    socket.addEventListener('open', () => {
+      console.log('[Insights socket] connected');
+    });
+
+    socket.addEventListener('message', event => {
+      try {
+        const update = JSON.parse(event.data);
+        if (update && typeof update === 'object') {
+          setInsights(update);
+        }
+      } catch (err) {
+        console.error('[Insights socket] parse error:', err);
+      }
+    });
+
+    socket.addEventListener('error', err => {
+      console.error('[Insights socket] error:', err);
+    });
+
+    socket.addEventListener('close', () => {
+      console.warn('[Insights socket] connection closed');
+    });
+
+    return () => {
+      if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+        socket.close();
+      }
+    };
   }, []);
 
   const severityColorMap = {
@@ -75,7 +109,7 @@ export default function App() {
     });
 
     return { nodes, links };
-  }, [rawData]);
+  }, [rawData, alertMap]);
 
   // Handle mobile responsiveness
   const [dimensions, setDimensions] = useState({
@@ -209,8 +243,8 @@ export default function App() {
 
           ctx.save();
           ctx.beginPath();
-          ctx.strokeStyle = '#f39c12'; // Door/Corridor color (e.g., orange)
-          ctx.lineWidth = 12; // Thick lines to look like hallways
+          ctx.strokeStyle = '#95a5a6';
+          ctx.lineWidth = 2;
           ctx.moveTo(source.x, source.y);
           ctx.lineTo(target.x, target.y);
           ctx.stroke();

@@ -30,8 +30,8 @@ export async function fetchGraphData() {
 export async function fetchInsights() {
   try {
     // Fetch insight data from the analytics endpoint
-    // const response = await fetch('./insights.json');
-    const response = await fetch('/analytics/insights');
+    const response = await fetch('./insights.json');
+    // const response = await fetch('/analytics/insights');
 
 
     if (!response.ok) {
