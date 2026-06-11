@@ -1,0 +1,5 @@
+# Ignore large dataset files
+Position-Annotated-BLE-RSSI-Dataset/
+
+# Keep only the processed output
+!converted_data/
