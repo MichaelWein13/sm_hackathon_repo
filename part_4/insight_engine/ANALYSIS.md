@@ -3,6 +3,8 @@
 Technical reference for how detection, scoring, and alert lifecycle work in code.
 Product spec: [`FINAL_VISION.md`](../FINAL_VISION.md). Architecture overview: [`DESIGN.md`](DESIGN.md).
 
+> **Reading the math:** Display formulas use `$$ ... $$`, inline uses `$ ... $` (renders on GitHub and in most Markdown math previews). Each key formula also has a **Plain** line you can read as source text if LaTeX does not render.
+
 ---
 
 ## 1. Pipeline overview
@@ -111,30 +113,38 @@ All rate calculations use this pair.
 
 For each zone `z`, sum transition counts on `flow_edges`:
 
-\[
-I_z = \sum_{\text{edge} \to z} \text{count}, \quad
-O_z = \sum_{\text{edge from } z} \text{count}
-\]
+$$
+I_z = \sum_{\text{edges into } z} \text{count}, \qquad
+O_z = \sum_{\text{edges out of } z} \text{count}
+$$
+
+**Plain:** `I_z` = total inbound transitions to zone z; `O_z` = total outbound.
 
 Convert to rates (movements per second):
 
-\[
-\dot{I}_z = \frac{I_z}{\Delta t}, \quad \dot{O}_z = \frac{O_z}{\Delta t}
-\]
+$$
+\dot{I}_z = \frac{I_z}{\Delta t}, \qquad \dot{O}_z = \frac{O_z}{\Delta t}
+$$
+
+**Plain:** `inbound_rate = inbound / duration_s` (same for outbound).
 
 **Accumulation ratio** (dimensionless stress proxy):
 
-\[
-A_z = \frac{\dot{I}_z}{\dot{O}_z + \varepsilon}, \quad \varepsilon = 0.01 \text{ mov/s}
-\]
+$$
+A_z = \frac{\dot{I}_z}{\dot{O}_z + \varepsilon}, \qquad \varepsilon = 0.01 \text{ mov/s}
+$$
 
-Physical intuition: if inbound rate consistently exceeds outbound rate, occupancy grows — queue buildup. This is related to net flow \(\dot{N} \propto \dot{I} - \dot{O}\), but the ratio form is scale-free in time when both sides use the same \(\Delta t\).
+**Plain:** `accumulation_ratio = inbound_rate / (outbound_rate + 0.01)`
+
+Physical intuition: if inbound rate consistently exceeds outbound rate, occupancy grows — queue buildup. Related to net flow $N \propto \dot{I} - \dot{O}$, but the ratio form is scale-free when both sides use the same $\Delta t$.
 
 **Score contribution:**
 
-\[
-f_{\text{acc}}(z) = \mathrm{clamp}\!\left(\frac{A_z}{5}, 0, 1\right)
-\]
+$$
+f_{\text{acc}}(z) = \mathrm{clamp}\left(\frac{A_z}{5},\ 0,\ 1\right)
+$$
+
+**Plain:** `acc_score = min(1, accumulation_ratio / 5)`
 
 The divisor `5` maps ratio ≥ 5 to maximum stress. Tunable.
 
@@ -150,49 +160,48 @@ The divisor `5` maps ratio ≥ 5 to maximum stress. Tunable.
 
 For each zone, build a series of inbound **rates** across windows:
 
-\[
+$$
 y_k = \frac{\text{inbound count in window } k}{\Delta t_k}
-\]
+$$
 
-Run ordinary least squares (OLS) with \(x_k = 0, 1, \ldots, n-1\):
+Run ordinary least squares (OLS) with $x_k = 0, 1, \ldots, n-1$:
 
-\[
+$$
 \hat{\beta} = \frac{\sum (x_k - \bar{x})(y_k - \bar{y})}{\sum (x_k - \bar{x})^2}
-\]
+$$
 
-\[
+$$
 R^2 = \frac{\left(\sum (x_k - \bar{x})(y_k - \bar{y})\right)^2}{\sum(x_k-\bar{x})^2 \sum(y_k-\bar{y})^2}
-\]
+$$
+
+**Plain:** `slope, r_squared = linear_regression(rate_series)`
 
 Normalize slope for scale invariance:
 
-\[
+$$
 \bar{y} = \frac{1}{n}\sum y_k
-\]
+$$
 
-\[
-\text{denom} = \begin{cases}
-\bar{y} + \varepsilon & \text{if } \bar{y} < 1 \text{ (rate series)} \\
-\bar{y} + 1 & \text{if } \bar{y} \geq 1 \text{ (count-like series)}
-\end{cases}
-\]
-
-\[
-\hat{\beta}_{\text{norm}} = \frac{\hat{\beta}}{\text{denom}}
-\]
+$$
+\hat{\beta}_{\text{norm}} = \frac{\hat{\beta}}{\bar{y} + \varepsilon}
+\quad\text{(when }\bar{y} < 1\text{; else divide by }\bar{y} + 1\text{)}
+$$
 
 **Trend score** (only rising trends count):
 
-\[
-f_{\text{trend}}(z) = \begin{cases}
-\mathrm{clamp}(\hat{\beta}_{\text{norm}}) \cdot R^2 & \hat{\beta}_{\text{norm}} > 0 \\
+$$
+f_{\text{trend}}(z) =
+\begin{cases}
+\mathrm{clamp}(\hat{\beta}_{\text{norm}}) \cdot R^2 & \text{if } \hat{\beta}_{\text{norm}} > 0 \\
 0 & \text{otherwise}
 \end{cases}
-\]
+$$
 
-Multiplying by \(R^2\) down-weights noisy spikes: a large slope only matters if the pattern is consistent across windows.
+**Plain:** `trend_score = normalized_slope * r_squared` (zero if slope ≤ 0)
 
-**Score contribution:** \(0.25 \cdot f_{\text{trend}}(z)\)
+Multiplying by $R^2$ down-weights noisy spikes: a large slope only matters if the pattern is consistent across windows.
+
+**Score contribution:** $0.25 \cdot f_{\text{trend}}(z)$
 
 ---
 
@@ -202,25 +211,29 @@ Multiplying by \(R^2\) down-weights noisy spikes: a large slope only matters if 
 
 Tracks a running baseline of each zone’s **inbound rate** across POST cycles (not within one snapshot).
 
-\[
-\mu_t = \alpha \cdot x_t + (1 - \alpha) \cdot \mu_{t-1}, \quad \alpha = 0.35
-\]
+$$
+\mu_t = \alpha \cdot x_t + (1 - \alpha) \cdot \mu_{t-1}, \qquad \alpha = 0.35
+$$
 
-where \(x_t = \dot{I}_z\) from the latest window this cycle.
+where $x_t = \dot{I}_z$ from the latest window this cycle.
 
-**Cold start:** first time zone is seen, \(\mu_1 = x_1\), so deviation is 0.
+**Plain:** `ewma = 0.35 * current_rate + 0.65 * prev_ewma`
+
+**Cold start:** first time zone is seen, $\mu_1 = x_1$, so deviation is 0.
 
 **Relative deviation:**
 
-\[
-d_t = \mathrm{clamp}\!\left(\frac{x_t - \mu_t}{\mu_t + \varepsilon}, -1, 1\right)
-\]
+$$
+d_t = \mathrm{clamp}\left(\frac{x_t - \mu_t}{\mu_t + \varepsilon},\ -1,\ 1\right)
+$$
 
-**Score contribution:** \(0.25 \cdot \mathrm{clamp}(d_t, 0, 1)\)
+**Plain:** `deviation_score = (current_rate - ewma) / (ewma + 0.01)`
+
+**Score contribution:** $0.25 \cdot \mathrm{clamp}(d_t,\ 0,\ 1)$
 
 Only positive deviations increase urgency. Negative deviations (recovery) do not reduce the composite score directly — de-escalation is handled by alert lifecycle (Section 8).
 
-**Memory:** effective half-life \(\approx \ln(0.5)/\ln(1-\alpha) \approx 1.5\) snapshots at \(\alpha=0.35\).
+**Memory:** effective half-life $\approx \ln(0.5)/\ln(1-\alpha) \approx 1.5$ snapshots at $\alpha=0.35$.
 
 State stored in `engine_state["ewma"]`: `dict[zone_id → float]`.
 
@@ -232,13 +245,15 @@ State stored in `engine_state["ewma"]`: `dict[zone_id → float]`.
 
 If zone dwell exceeds session median:
 
-\[
-r_{\text{dwell}} = \min\!\left(\frac{\text{avg\_dwell\_ms}_z}{\text{median dwell}}, 3\right)
-\]
+$$
+r_{\text{dwell}} = \min\left(\frac{\text{avg\_dwell\_ms}_z}{\text{median dwell}},\ 3\right)
+$$
 
-\[
+$$
 m_{\text{dwell}} = 1 + 0.2 \cdot (r_{\text{dwell}} - 1)
-\]
+$$
+
+**Plain:** `urgency *= 1 + 0.2 * (min(dwell/median, 3) - 1)` when dwell > median
 
 Maximum boost: 40% at 3× median dwell. Median is computed across all zones in `zone_stats` for this snapshot.
 
@@ -248,19 +263,25 @@ Maximum boost: 40% at 3× median dwell. Median is computed across all zones in `
 
 **File:** `detection.compute_urgency`
 
-\[
-U_z = \mathrm{clamp}\Bigl(
-  m_{\text{dwell}} \cdot \bigl(
+$$
+U_z = \mathrm{clamp}\left(
+  m_{\text{dwell}} \cdot \left(
     0.50 \cdot f_{\text{acc}} +
     0.25 \cdot f_{\text{trend}} +
     0.25 \cdot f_{\text{ewma}}
-  \bigr)
-\Bigr)
-\]
+  \right)
+\right)
+$$
 
-\(U_z \in [0, 1]\). This is the primary continuous output per zone.
+**Plain:**
 
-**Note:** `confidence` on emitted alerts is currently set equal to \(U_z\) (or structural confidence for edge alerts). These are conflated in the implementation — a known limitation if true statistical confidence is needed later.
+```
+U = clamp( dwell_multiplier * (0.5*acc_score + 0.25*trend_score + 0.25*ewma_score) )
+```
+
+$U_z \in [0, 1]$. This is the primary continuous output per zone.
+
+**Note:** `confidence` on emitted alerts is currently set equal to $U_z$ (or structural confidence for edge alerts). These are conflated in the implementation — a known limitation if true statistical confidence is needed later.
 
 ---
 
@@ -270,37 +291,37 @@ U_z = \mathrm{clamp}\Bigl(
 
 **File:** `detection.compute_convergence`
 
-A destination zone \(d\) is flagged if it receives inbound edges from ≥ 2 sources where each edge’s rate meets:
+A destination zone $d$ is flagged if it receives inbound edges from ≥ 2 sources where each edge’s rate meets:
 
-\[
+$$
 \frac{\text{count}}{\Delta t} \geq 0.015 \text{ mov/s}
-\]
+$$
 
 (~4.5 movements in a 5-minute window).
 
-Output: `{zone_id, source_count, total_inbound, sources[], current_urgency}`.
+**Plain:** `edge_rate = transition_count / duration_s`; need ≥ 2 feeders each ≥ 0.015 mov/s
 
 In `alert_state`, convergence boosts the downstream zone’s bottleneck alert:
 
-\[
+$$
 U_{\text{conv}} = \mathrm{clamp}(U_{\text{zone}} \times 1.15)
-\]
+$$
 
 ### 9.2 Cascade risk
 
 **File:** `detection.compute_cascade_risk`
 
-For each zone \(a\) with \(U_a \geq 0.45\):
+For each zone $a$ with $U_a \geq 0.45$:
 
 1. Find outbound edge with highest `transition_probability`
-2. Let destination be \(b\)
-3. If \(U_b \geq 0.45\), emit cascade pair \((a \to b)\)
+2. Let destination be $b$
+3. If $U_b \geq 0.45$, emit cascade pair $(a \to b)$
 
 Alert attaches to downstream zone with:
 
-\[
-U_{\text{cascade}} = \mathrm{clamp}\!\left(\frac{U_a + U_b}{2} \times 1.2\right)
-\]
+$$
+U_{\text{cascade}} = \mathrm{clamp}\left(\frac{U_a + U_b}{2} \times 1.2\right)
+$$
 
 ### 9.3 Structural changes
 
@@ -308,8 +329,8 @@ U_{\text{cascade}} = \mathrm{clamp}\!\left(\frac{U_a + U_b}{2} \times 1.2\right)
 
 | Pattern | Rule | Alert type |
 |---|---|---|
-| **New edge** | `(from, to) \in\) cumulative edges but \(\notin\) `edge_history` | `anomaly` |
-| **Unexpected transition** | In `flow_edges`, `p < 0.05`, `count ≥ 2`, edge \(\notin\) `edge_history` | `unexpected_transition` |
+| **New edge** | `(from, to)` in cumulative edges but not in `edge_history` | `anomaly` |
+| **Unexpected transition** | In `flow_edges`: `p < 0.05`, `count ≥ 2`, edge not in `edge_history` | `unexpected_transition` |
 | **Isolation** | Zone present in ≥ 60% of prior snapshots but absent from `nodes` now (after ≥ 3 prior snapshots) | `anomaly` |
 
 `edge_history` is updated every cycle with the full cumulative edge set (for session memory).
@@ -327,7 +348,7 @@ U_{\text{cascade}} = \mathrm{clamp}\!\left(\frac{U_a + U_b}{2} \times 1.2\right)
 
 The manager collects candidate `(alert_id → urgency)` pairs:
 
-1. **Zone-level:** each zone with \(U_z \geq 0.20\) and a selected `insight_type`
+1. **Zone-level:** each zone with $U_z \geq 0.20$ and a selected `insight_type`
 2. **Structural / cross-zone:** after warm-up, from structural, cascade, convergence passes
 
 Alert ID format: `{zone_id}__{insight_type}` (e.g. `zone_3__congestion_forecast`).
@@ -340,10 +361,10 @@ Candidates below `SEVERITY_THRESHOLDS["detecting"]` (0.20) are dropped.
 
 | Priority | Type | Condition |
 |---|---|---|
-| 1 | `congestion_forecast` | `trend_score > 0.25` AND \(U \geq 0.42\) |
-| 2 | `bottleneck_risk` | `accumulation_ratio > 2.5` AND \(U \geq 0.42\) |
+| 1 | `congestion_forecast` | `trend_score > 0.25` AND $U \geq 0.42$ |
+| 2 | `bottleneck_risk` | `accumulation_ratio > 2.5` AND $U \geq 0.42$ |
 | 3 | `high_dwell_zone` | `dwell > 2×` session median |
-| 4 | `anomaly` | \(U \geq 0.20\) |
+| 4 | `anomaly` | $U \geq 0.20$ |
 
 Structural types (`unexpected_transition`, new-route `anomaly`) are raised separately and can coexist on the same zone.
 
@@ -359,14 +380,14 @@ detecting → warning → critical → resolving → resolved
 
 | Urgency | Target |
 |---|---|
-| \(U \geq 0.68\) | critical |
-| \(U \geq 0.42\) | warning |
-| \(U \geq 0.20\) | detecting |
+| $U \geq 0.68$ | critical |
+| $U \geq 0.42$ | warning |
+| $U \geq 0.20$ | detecting |
 | else | none |
 
 **Controller rules (`_apply_hysteresis`):**
 
-- **New alerts always enter at `detecting`** — even if \(U = 0.80\)
+- **New alerts always enter at `detecting`** — even if $U = 0.80$
 - **Escalation:** one rung at a time; requires `CYCLES_TO_ESCALATE = 2` consecutive cycles where target supports the next rung
 - **Faster re-escalation:** if `prior_max_severity` already reached the next rung, only 1 cycle needed
 - **De-escalation (while active):** one rung down after `CYCLES_TO_DEESCALATE = 3` cycles below target
@@ -423,7 +444,7 @@ Minimum time from birth to `critical`: 4 snapshots (detecting → warning → cr
 | `MIN_UNEXPECTED_COUNT` | 2 | Min transitions for rare-route alert |
 | `MAX_UNEXPECTED_PROB` | 0.05 | Probability ceiling for “unexpected” |
 | `MIN_CONVERGENCE_RATE` | 0.015 | Min mov/s per feeder edge |
-| Accumulation divisor | 5 | Maps ratio to \(f_{\text{acc}}\) |
+| Accumulation divisor | 5 | Maps ratio to $f_{\text{acc}}$ |
 | Urgency weights | 50 / 25 / 25 | acc / trend / ewma |
 | Cascade threshold | 0.45 | Min urgency for cascade scan |
 
@@ -497,7 +518,7 @@ insight_engine/
 
 - No absolute capacity model — urgency is relative to session baselines and ratios
 - `confidence` equals urgency — not a separate statistical measure
-- Negative EWMA/trend does not reduce composite \(U\) — only lifecycle handles recovery
+- Negative EWMA/trend does not reduce composite $U$ — only lifecycle handles recovery
 - Structural `p < 0.05` is a heuristic, not information-theoretic surprise
 - Top-level cumulative edges are used only for `new_edges` / history; flow uses latest window — intentional but requires Person 3 to populate windows correctly
 
@@ -509,7 +530,7 @@ insight_engine/
 | EWMA drift | ≥ 2 POSTs with changing rates |
 | Isolation | ≥ 3 prior snapshots |
 | Structural alerts | cycle > 2 |
-| Congestion forecast | trend + \(U \geq 0.42\) |
+| Congestion forecast | trend + $U \geq 0.42$ |
 
 ---
 
@@ -520,13 +541,13 @@ At mock step 11 (congestion peak), approximate values:
 | Component | Value |
 |---|---|
 | Latest window inbound / outbound | 40 / 0 |
-| \(\dot{I}\), \(\dot{O}\) | 0.133, 0 mov/s |
-| \(A_z = \dot{I}/(\dot{O}+\varepsilon)\) | ~13.3 |
-| \(f_{\text{acc}}\) | 1.0 (capped) |
+| $\dot{I}$, $\dot{O}$ | 0.133, 0 mov/s |
+| $A_z = \dot{I}/(\dot{O}+\varepsilon)$ | ~13.3 |
+| $f_{\text{acc}}$ | 1.0 (capped) |
 | `trend_score` | ~0.48 |
 | `ewma deviation` | ~0.44 |
-| Base \(U\) | \(0.5 + 0.12 + 0.11 \approx 0.73\) |
+| Base $U$ | $0.5 + 0.12 + 0.11 \approx 0.73$ |
 | Alert type | `congestion_forecast` |
 | After hysteresis | `critical` by step 11 |
 
-At Person 3 static graph (28 zones, 1 window, balanced hub traffic): \(U_{\max} \approx 0.13\), 0 alerts after warm-up — expected until windows accumulate and traffic imbalances develop.
+At Person 3 static graph (28 zones, 1 window, balanced hub traffic): $U_{\max} \approx 0.13$, 0 alerts after warm-up — expected until windows accumulate and traffic imbalances develop.
