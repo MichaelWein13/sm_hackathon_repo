@@ -1,0 +1,32 @@
+[
+    {
+        " zone_id ": "chava",
+        " insight_type ": "bottleneck_risk",
+        " message ": "High inbound traffic from all neighboring zones indicates an imminent bottleneck.",
+        " confidence ": 0.88
+    },
+    {
+        " zone_id ": "kitchen",
+        " insight_type ": "high_dwell_zone",
+        " message ": "Average dwell time has exceeded the normal operational bounds of 90 minutes.",
+        " confidence ": 0.95
+    },
+    {
+        " zone_id ": "lobby",
+        " insight_type ": "unexpected_transition",
+        " message ": "Unusual transition pattern detected leaving the area outside of normal hours.",
+        " confidence ": 0.62
+    },
+    {
+        " zone_id ": "food hall",
+        " insight_type ": "congestion_forecast",
+        " message ": "Predicted capacity limit to be reached within the next 30 minutes based on current velocity.",
+        " confidence ": 0.74
+    },
+    {
+        " zone_id ": "aquarium",
+        " insight_type ": "anomaly",
+        " message ": "Traffic flow is significantly lower than historical averages for this specific time window.",
+        " confidence ": 0.81
+    }
+]
