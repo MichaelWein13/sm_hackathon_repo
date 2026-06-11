@@ -20,7 +20,6 @@ def validate_record(record: Record) -> None:
         "device_id",
         "source_type",
         "signal_vector",
-        "confidence",
     ]
 
     for field in required_fields:
@@ -43,13 +42,7 @@ def validate_record(record: Record) -> None:
         if not isinstance(value, (int, float)):
             raise ValueError("signal_vector must contain only numbers")
 
-    confidence = record["confidence"]
 
-    if not isinstance(confidence, (int, float)):
-        raise ValueError("confidence must be a number")
-
-    if confidence < 0.0 or confidence > 1.0:
-        raise ValueError("confidence must be between 0.0 and 1.0")
 
 
 def load_records(input_path: str) -> List[Record]:
@@ -64,49 +57,39 @@ def load_records(input_path: str) -> List[Record]:
 
     return data
 
-
 def combine_group_into_observation(records_at_same_moment: List[Record]) -> Observation:
     device_id = records_at_same_moment[0]["device_id"]
 
-    feature_values = {}
-    feature_weights = {}
-    confidences = []
+    feature_sums = {}
+    feature_counts = {}
     timestamps = []
 
     for record in records_at_same_moment:
         source_type = record["source_type"]
         signal_vector = record["signal_vector"]
-        confidence = float(record["confidence"])
         timestamp_ms = int(record["timestamp_ms"])
 
-        confidences.append(confidence)
         timestamps.append(timestamp_ms)
 
         for index, value in enumerate(signal_vector):
             feature_name = f"{source_type}_{index}"
 
-            if feature_name not in feature_values:
-                feature_values[feature_name] = 0.0
-                feature_weights[feature_name] = 0.0
+            if feature_name not in feature_sums:
+                feature_sums[feature_name] = 0.0
+                feature_counts[feature_name] = 0
 
-            feature_values[feature_name] += float(value) * confidence
-            feature_weights[feature_name] += confidence
+            feature_sums[feature_name] += float(value)
+            feature_counts[feature_name] += 1
 
-        feature_values[f"{source_type}_present"] = 1.0
-        feature_weights[f"{source_type}_present"] = 1.0
-
-        feature_values[f"{source_type}_confidence"] = confidence
-        feature_weights[f"{source_type}_confidence"] = 1.0
+        feature_sums[f"{source_type}_present"] = 1.0
+        feature_counts[f"{source_type}_present"] = 1
 
     final_features = {}
 
-    for feature_name in feature_values:
-        if feature_weights[feature_name] == 0:
-            final_features[feature_name] = 0.0
-        else:
-            final_features[feature_name] = (
-                feature_values[feature_name] / feature_weights[feature_name]
-            )
+    for feature_name in feature_sums:
+        final_features[feature_name] = (
+            feature_sums[feature_name] / feature_counts[feature_name]
+        )
 
     representative_timestamp = round(sum(timestamps) / len(timestamps))
 
@@ -114,7 +97,6 @@ def combine_group_into_observation(records_at_same_moment: List[Record]) -> Obse
         "timestamp_ms": representative_timestamp,
         "device_id": device_id,
         "features": final_features,
-        "input_confidence": sum(confidences) / len(confidences),
     }
 
 
@@ -228,23 +210,16 @@ def choose_number_of_zones(X_scaled: np.ndarray, max_zones: int) -> int:
 
     return best_k
 
-
-def compute_zone_confidence(
-    distances_to_centers: np.ndarray,
-    input_confidence: float,
-) -> float:
+def compute_zone_confidence(distances_to_centers: np.ndarray) -> float:
     if len(distances_to_centers) == 1:
-        return round(input_confidence, 4)
+        return 1.0
 
     exp_values = np.exp(-distances_to_centers)
     probabilities = exp_values / np.sum(exp_values)
 
     model_confidence = float(np.max(probabilities))
-    final_confidence = model_confidence * input_confidence
 
-    final_confidence = max(0.0, min(1.0, final_confidence))
-
-    return round(final_confidence, 4)
+    return round(max(0.0, min(1.0, model_confidence)), 4)
 
 
 def discover_zones(
@@ -295,8 +270,7 @@ def discover_zones(
             "device_id": observation["device_id"],
             "zone_id": label_to_zone_id[label],
             "zone_confidence": compute_zone_confidence(
-                distances,
-                observation["input_confidence"],
+                distances
             ),
         }
 
@@ -344,16 +318,16 @@ def main() -> None:
     )
 
     parser.add_argument(
-        "--assignments-output",
-        default="outputs/assignments.json",
-        help="Where to save zone assignment records.",
-    )
+    "--assignments-output",
+    default="person2_zone_discovery/outputs/assignments.json",
+    help="Where to save zone assignment records.",
+)
 
     parser.add_argument(
-        "--zones-output",
-        default="outputs/zones.json",
-        help="Where to save zone definition records.",
-    )
+    "--zones-output",
+    default="person2_zone_discovery/outputs/zones.json",
+    help="Where to save zone definition records.",
+)
 
     parser.add_argument(
         "--max-zones",
@@ -376,8 +350,7 @@ def main() -> None:
     assignments, zone_definitions = discover_zones(
     records,
     max_zones=args.max_zones,
-    time_window_ms=args.time_window_ms,
-    )
+    time_window_ms=args.time_window_ms,)
 
     save_json(assignments, args.assignments_output)
     save_json(zone_definitions, args.zones_output)

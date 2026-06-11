@@ -3,42 +3,36 @@
     "timestamp_ms": 1710000000000,
     "device_id": "person_1",
     "source_type": "uwb",
-    "signal_vector": [2.41, 2.87, 3.02],
-    "confidence": 0.91
+    "signal_vector": [2.41, 2.87, 3.02]
   },
   {
     "timestamp_ms": 1710000000000,
     "device_id": "person_1",
     "source_type": "wifi",
-    "signal_vector": [0.12, -1.4, 0.88, 2.1],
-    "confidence": 0.75
+    "signal_vector": [0.12, -1.4, 0.88, 2.1]
   },
   {
     "timestamp_ms": 1710000001000,
     "device_id": "person_1",
     "source_type": "uwb",
-    "signal_vector": [2.38, 2.8, 3.05],
-    "confidence": 0.89
+    "signal_vector": [2.38, 2.8, 3.05]
   },
   {
     "timestamp_ms": 1710000002000,
     "device_id": "person_2",
     "source_type": "uwb",
-    "signal_vector": [9.2, 8.7, 9.0],
-    "confidence": 0.95
+    "signal_vector": [9.2, 8.7, 9.0]
   },
   {
     "timestamp_ms": 1710000003000,
     "device_id": "person_2",
     "source_type": "wifi",
-    "signal_vector": [4.8, 4.6, 4.9, 5.1],
-    "confidence": 0.82
+    "signal_vector": [4.8, 4.6, 4.9, 5.1]
   },
   {
     "timestamp_ms": 1710000004000,
     "device_id": "person_3",
     "source_type": "ble",
-    "signal_vector": [-1.2, -1.0],
-    "confidence": 0.7
+    "signal_vector": [-1.2, -1.0]
   }
 ]
