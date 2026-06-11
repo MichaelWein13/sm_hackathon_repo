@@ -229,7 +229,7 @@ Person 4 now pushes live updates over **Server-Sent Events**. Replace polling wi
 #### 1. Start Part 4 first
 
 ```bash
-cd part_4   # from sm_hackathon_repo checkout
+cd part_4_insight_reporting   # from sm_hackathon_repo checkout
 export NARRATION_BACKEND=disabled
 python3 insight_engine/engine.py --serve --api-only --out-dir ../../floorflow-io/anomaly_reports --fresh
 ```
@@ -379,7 +379,7 @@ curl http://localhost:8765/analytics/summary
 
 ## Quick start (mock demo)
 
-From `part_4/` (recommended):
+From `part_4_insight_reporting/` (recommended):
 
 ```bash
 export NARRATION_BACKEND=disabled
