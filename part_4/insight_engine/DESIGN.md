@@ -70,11 +70,51 @@ Dwell time above median applies a multiplier (long stays under congestion = more
 | Cascade risk | `compute_cascade_risk` | Warning upstream + warning downstream on connected path |
 | Structural | `compute_structural_changes` | New edges, low-probability transitions, isolated zones |
 
-### Insight type selection (`alert_state.py` → `_select_insight_type`)
+### Insight types
 
-One type per zone-level alert, by priority: `congestion_forecast` → `bottleneck_risk` → `high_dwell_zone` → `anomaly`.
+Each active alert carries an `insight_type` — the operational category Person 5 displays and messages reference. Types are chosen in `alert_state.py`.
 
-Structural alerts (`unexpected_transition`, new-route `anomaly`, isolation) are raised separately from edge/convergence passes.
+#### Glossary
+
+| `insight_type` | What it means (incident commander view) | When it fires |
+|---|---|---|
+| `congestion_forecast` | Traffic is rising and this sector is heading toward overload | Rising inbound trend across `time_windows` (`trend_score > 0.25`) plus warning-level urgency |
+| `bottleneck_risk` | People arriving faster than leaving, or multiple paths converging on one destination | High inflow/outflow ratio (`acc_ratio > 2.5`), **or** convergence (≥2 high-traffic feeders), **or** cascade (stressed upstream + downstream pair) |
+| `high_dwell_zone` | People staying unusually long — staging, waiting, or friction | Zone `avg_dwell_ms` > 2× the building median |
+| `unexpected_transition` | A rare route was taken — possible rerouting or access to an unused area | Edge with `transition_probability < 0.05` that fired this cycle |
+| `anomaly` | Structural surprise — new topology or a zone going quiet | Brand-new edge never seen in the session, **or** previously active zone now absent, **or** general unusual activity below other type thresholds |
+
+**Global headline only** (not in Person 5's flat API): `situation_summary` on `zone_id: "global"` — one-line dashboard headline in `insights_<ts>.json`.
+
+#### Selection rules
+
+**Zone-level urgency alerts** — one type per zone, by priority in `_select_insight_type`:
+
+`congestion_forecast` → `bottleneck_risk` → `high_dwell_zone` → `anomaly`
+
+**Structural / cross-zone alerts** — raised separately, can coexist with zone-level alerts on the same `zone_id`:
+
+| Type | Source in `alert_state.py` |
+|---|---|
+| `unexpected_transition` | `structural.unexpected_transitions` |
+| `anomaly` (new route) | `structural.new_edges` |
+| `anomaly` (isolation) | `structural.isolated_zones` |
+| `bottleneck_risk` (convergence) | `convergence` pass |
+| `bottleneck_risk` (cascade) | `cascades` pass |
+
+Alert IDs are `{zone_id}__{insight_type}` — e.g. `zone_3__congestion_forecast`.
+
+#### Mock demo mapping
+
+See [`mock/README.md`](../mock/README.md). Short version:
+
+| Story | Alert ID | Type |
+|---|---|---|
+| A — Congestion arc | `zone_3__congestion_forecast` | `congestion_forecast` |
+| A — Convergence feeder | `zone_3__bottleneck_risk` | `bottleneck_risk` |
+| B — New rare route | `zone_1__unexpected_transition` | `unexpected_transition` |
+| Background — Medical staging | `zone_2__high_dwell_zone` | `high_dwell_zone` |
+| New zone / edge appears | `zone_*__anomaly` | `anomaly` |
 
 ---
 

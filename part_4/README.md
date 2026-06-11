@@ -159,7 +159,17 @@ Suggested UI mapping:
 | `resolving` | Blue/grey — improving, keep visible |
 | `resolved` | Remove from active list (event only) |
 
-**Insight types:** `congestion_forecast`, `bottleneck_risk`, `high_dwell_zone`, `anomaly`, `unexpected_transition`
+**Insight types:**
+
+| `insight_type` | Meaning |
+|---|---|
+| `congestion_forecast` | Traffic rising — sector heading toward overload |
+| `bottleneck_risk` | Inflow exceeding outflow, or multiple paths converging |
+| `high_dwell_zone` | Unusually long stays — staging, waiting, or friction |
+| `unexpected_transition` | Rare route taken — possible rerouting or new access |
+| `anomaly` | New edge, quiet zone, or other structural surprise |
+
+Full trigger logic and mock demo mapping: [`insight_engine/DESIGN.md`](insight_engine/DESIGN.md#insight-types).
 
 **Zone labels:** messages use `Sector N` (from `zone_N`). Highlight `zone_id` on the graph.
 
