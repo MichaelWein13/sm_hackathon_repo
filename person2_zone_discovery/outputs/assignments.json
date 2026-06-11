@@ -1,0 +1,32 @@
+[
+  {
+    "timestamp_ms": 1710000000000,
+    "device_id": "person_1",
+    "zone_id": "zone_2",
+    "zone_confidence": 0.9399
+  },
+  {
+    "timestamp_ms": 1710000001000,
+    "device_id": "person_1",
+    "zone_id": "zone_2",
+    "zone_confidence": 0.9643
+  },
+  {
+    "timestamp_ms": 1710000002000,
+    "device_id": "person_2",
+    "zone_id": "zone_2",
+    "zone_confidence": 0.9819
+  },
+  {
+    "timestamp_ms": 1710000003000,
+    "device_id": "person_2",
+    "zone_id": "zone_3",
+    "zone_confidence": 0.9964
+  },
+  {
+    "timestamp_ms": 1710000004000,
+    "device_id": "person_3",
+    "zone_id": "zone_1",
+    "zone_confidence": 0.9949
+  }
+]

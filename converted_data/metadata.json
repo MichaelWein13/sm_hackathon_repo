@@ -1,0 +1,20 @@
+{
+  "sensor_order": [
+    "000000000101",
+    "000000000102",
+    "000000000201",
+    "000000000202",
+    "000000000301",
+    "000000000302",
+    "000000000401",
+    "000000000402",
+    "b827eb4521b4",
+    "b827eb917e19",
+    "b827ebf7d096",
+    "b827ebfd7811"
+  ],
+  "signal_vector_length": 12,
+  "source_type": "ble",
+  "interval_ms": 500,
+  "description": "BLE RSSI data converted to standard format. signal_vector indices correspond to sensor_order."
+}
