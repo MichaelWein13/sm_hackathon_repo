@@ -52,12 +52,12 @@ cs_hackathon/
 
 ## Open everything in Cursor / VS Code
 
-The workspace file lives under Part 4: `part_4_insight_reporting/floorflow.code-workspace`
+The workspace file lives under Part 4: `person_4_insight_reporting/floorflow.code-workspace`
 
 ```bash
-cd sm_hackathon_repo/part_4_insight_reporting
+cd sm_hackathon_repo/person_4_insight_reporting
 cursor floorflow.code-workspace
-# or: File → Open Workspace from File… → part_4_insight_reporting/floorflow.code-workspace
+# or: File → Open Workspace from File… → person_4_insight_reporting/floorflow.code-workspace
 ```
 
 All folders appear in the sidebar at once.
@@ -72,10 +72,10 @@ All folders appear in the sidebar at once.
 | 4 — Insight engine | SSE + `floorflow-io/anomaly_reports/` (file backup) | `POST /ingest/graph` |
 | 5 — Visualization | — | `GET http://localhost:8765/analytics/stream` (SSE) |
 
-**Start Person 4 (from `part_4_insight_reporting/`):**
+**Start Person 4 (from `person_4_insight_reporting/`):**
 
 ```bash
-cd sm_hackathon_repo/part_4_insight_reporting
+cd sm_hackathon_repo/person_4_insight_reporting
 ./scripts/run_demo.sh --engine-only
 # or:
 export NARRATION_BACKEND=disabled
