@@ -12,33 +12,39 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedAlertZone, setSelectedAlertZone] = useState(null);
   const [highlightedAlertZone, setHighlightedAlertZone] = useState(null);
+  const [graphSource, setGraphSource] = useState('static');
+  const [insightSource, setInsightSource] = useState('static');
   const fgRef = useRef(); // 1. Reference to the graph to tweak its physics
   const alertRefs = useRef({});
   const highlightTimeoutRef = useRef(null);
 
   // Fetch data
   useEffect(() => {
-    fetchGraphData()
+    setLoading(true);
+    fetchGraphData(graphSource)
       .then(graphResponse => {
         setRawData(graphResponse);
         setLoading(false);
       })
       .catch(err => {
         console.error("Failed to load graph data:", err);
+        setRawData(null);
         setLoading(false);
       });
-  }, []);
+  }, [graphSource]);
 
   useEffect(() => {
-    fetchInsights()
+    fetchInsights(insightSource)
       .then(insightResponse => setInsights(insightResponse))
       .catch(err => {
         console.error('Failed to load insights:', err);
+        setInsights({ alerts: [], summary: null });
       });
-  }, []);
+  }, [insightSource]);
 
   // Subscribe to insight updates over SSE.
   useEffect(() => {
+    if (insightSource !== 'endpoint') return;
     if (!window.EventSource) {
       console.warn('SSE not supported by this browser');
       return;
@@ -72,7 +78,7 @@ export default function App() {
     return () => {
       source.close();
     };
-  }, []);
+  }, [insightSource]);
 
   const severityColorMap = {
     detecting: '#95a5a6',
@@ -183,49 +189,56 @@ export default function App() {
 
   // Transform data
   const graphData = useMemo(() => {
-    if (!rawData || !rawData.zones) return { nodes: [], links: [] };
-
-    const timeWindows = rawData.time_windows ?? rawData[' time_windows '] ?? [];
-    const latestWindow = timeWindows.reduce((best, window) => {
-      const start = getEdgeMetric(window, 'window_start_ms');
-      if (!best) return window;
-      const bestStart = getEdgeMetric(best, 'window_start_ms');
-      return start > bestStart ? window : best;
-    }, null);
-
-    const windowZoneMap = new Map();
-    const windowGraph = latestWindow ? safeGet(latestWindow, 'window_graph') : null;
-    if (windowGraph) {
-      (windowGraph.nodes ?? []).forEach(zone => {
-        windowZoneMap.set(zone.name, zone);
-      });
+    if (!rawData || (!rawData.zones && !Array.isArray(rawData.nodes))) {
+      return { nodes: [], links: [] };
     }
 
-    const nodes = rawData.zones.map(zone => {
-      const alert = alertMap.get(zone.name);
+    const createNode = id => {
+      const alert = alertMap.get(id);
       const severity = alert?.severity;
       return {
-        id: zone.name,
-        name: zone.name.toUpperCase(),
+        id,
+        name: id.toUpperCase(),
         alertType: alert?.insight_type,
         alertSeverity: severity,
         alertSeverityColor: severity ? severityColorMap[severity] : undefined,
       };
-    });
+    };
 
+    const nodes = [];
     const links = [];
     const edgeSet = new Set();
-    rawData.zones.forEach(zone => {
-      if (zone.out_edges) {
-        zone.out_edges.forEach(edge => {
-          edgeSet.add(`${zone.name}||${edge.name}`);
+
+    if (rawData.zones) {
+      const timeWindows = rawData.time_windows ?? rawData[' time_windows '] ?? [];
+      const latestWindow = timeWindows.reduce((best, window) => {
+        const start = getEdgeMetric(window, 'window_start_ms');
+        if (!best) return window;
+        const bestStart = getEdgeMetric(best, 'window_start_ms');
+        return start > bestStart ? window : best;
+      }, null);
+
+      const windowZoneMap = new Map();
+      const windowGraph = latestWindow ? safeGet(latestWindow, 'window_graph') : null;
+      if (windowGraph) {
+        (windowGraph.nodes ?? []).forEach(zone => {
+          windowZoneMap.set(zone.name, zone);
         });
       }
-    });
 
-    rawData.zones.forEach(zone => {
-      if (zone.out_edges) {
+      rawData.zones.forEach(zone => {
+        nodes.push(createNode(zone.name));
+        if (zone.out_edges) {
+          zone.out_edges.forEach(edge => {
+            edgeSet.add(`${zone.name}||${edge.name}`);
+          });
+        }
+      });
+
+      rawData.zones.forEach(zone => {
+        if (!zone.out_edges) return;
         const windowZone = windowZoneMap.get(zone.name);
+
         zone.out_edges.forEach(edge => {
           const currentCount = getEdgeMetric(edge, 'transition_count');
           const currentProbability = getEdgeMetric(edge, 'transition_probability');
@@ -256,8 +269,31 @@ export default function App() {
             offset,
           });
         });
-      }
-    });
+      });
+    } else {
+      rawData.nodes.forEach(nodeName => {
+        nodes.push(createNode(nodeName));
+      });
+
+      rawData.edges.forEach(edge => {
+        const sourceId = edge.from_zone_id || edge.fromZoneId || edge.source;
+        const targetId = edge.to_zone_id || edge.toZoneId || edge.target;
+        const transitionCount = getEdgeMetric(edge, 'transition_count');
+        const transitionProbability = getEdgeMetric(edge, 'transition_probability');
+        const flowScore = transitionCount * Math.max(transitionProbability, 0.1);
+
+        links.push({
+          source: sourceId,
+          target: targetId,
+          transition_count: transitionCount,
+          transition_probability: transitionProbability,
+          flowScore,
+          offset: 0,
+        });
+
+        edgeSet.add(`${sourceId}||${targetId}`);
+      });
+    }
 
     assignInitialLayout(nodes, links, dimensions);
     return { nodes, links };
@@ -319,7 +355,42 @@ export default function App() {
 
   return (
     <div style={{ position: 'relative', margin: 0, padding: 0, overflow: 'hidden', backgroundColor: '#1e1e1e' }}>
-      <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 20 }}>
+      <div style={{ position: 'absolute', top: 16, left: 16, zIndex: 20, pointerEvents: 'none' }}>
+        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', color: '#ffffff' }}>
+          Floor<span style={{ color: '#0c8576' }}>Flow</span>
+        </h1>
+      </div>
+      <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 20, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => setGraphSource(source => source === 'static' ? 'endpoint' : 'static')}
+            style={{
+              padding: '8px 12px',
+              borderRadius: 20,
+              border: 'none',
+              cursor: 'pointer',
+              backgroundColor: graphSource === 'endpoint' ? '#34495e' : '#16a085',
+              color: '#ffffff',
+              boxShadow: '0 3px 10px rgba(0,0,0,0.25)'
+            }}
+          >
+            Graph: {graphSource === 'endpoint' ? 'Endpoint' : 'Static'}
+          </button>
+          <button
+            onClick={() => setInsightSource(source => source === 'static' ? 'endpoint' : 'static')}
+            style={{
+              padding: '8px 12px',
+              borderRadius: 20,
+              border: 'none',
+              cursor: 'pointer',
+              backgroundColor: insightSource === 'endpoint' ? '#34495e' : '#16a085',
+              color: '#ffffff',
+              boxShadow: '0 3px 10px rgba(0,0,0,0.25)'
+            }}
+          >
+            Insights: {insightSource === 'endpoint' ? 'Endpoint' : 'Static'}
+          </button>
+        </div>
         <button
           onClick={() => setSidebarOpen(open => !open)}
           style={{
