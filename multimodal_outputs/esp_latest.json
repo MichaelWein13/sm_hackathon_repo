@@ -1,0 +1,11 @@
+{
+  "person_1|esp_outside": {
+    "anchor_id": "esp_outside",
+    "device_id": "person_1",
+    "rssi": -100,
+    "seen": false,
+    "confidence": 0.1,
+    "esp_millis": 89772,
+    "server_timestamp_ms": 1781179610290
+  }
+}
