@@ -10,12 +10,30 @@ Real-time situational awareness for emergency response. Watches movement graph s
 
 ### For Person 3 — your output is my input
 
-**Write to:** `movement_graphs/graph_<timestamp_ms>.json`
+**Primary (REST):**
 
-- One **new file per snapshot** — do not overwrite previous files
-- Each file is a **complete graph at that moment**, including all `time_windows` observed so far
-- `<timestamp_ms>` should match the snapshot's logical time (engine reads it from the filename)
-- Engine polls every **2 seconds** by default; any write cadence ≥2s is fine
+| Method | Path | Body / response |
+|---|---|---|
+| `POST` | `/ingest/graph` | Graph JSON → `{ ok, snapshot_ts, cycle, alert_count, insights[] }` |
+| `GET` | `/health` | `{ status, ingest, insights }` — verify `"ingest"` before demo |
+
+```bash
+# Start the engine first
+python3 insight_engine/engine.py --serve --api-only --out-dir ../anomaly_reports --fresh
+
+# Person 3 pushes each snapshot
+curl -X POST http://127.0.0.1:8765/ingest/graph \
+  -H "Content-Type: application/json" \
+  -d @final_movement_graph.json
+```
+
+If POST returns `501`, an old server is on the port: `fuser -k 8765/tcp` and restart.
+
+- POST **once per snapshot** as your graph updates (same cadence you would have written files)
+- Each payload is a **complete graph at that moment**, including all `time_windows` observed so far
+- Include `snapshot_ts` (ms) in the JSON when you have a logical time
+
+**Legacy (files):** `movement_graphs/graph_<timestamp_ms>.json` — still supported with `--watch-files`
 
 **Required JSON shape:**
 
@@ -68,9 +86,9 @@ Real-time situational awareness for emergency response. Watches movement graph s
 
 **Wire-up:**
 ```bash
-# Person 3 writes to ../movement_graphs/ (or a shared folder)
-# Person 4 reads from the same path:
-python3 insight_engine/engine.py --graph-dir /shared/movement_graphs --out-dir /shared/anomaly_reports
+export NARRATION_BACKEND=disabled
+python3 insight_engine/engine.py --serve --api-only --out-dir /shared/anomaly_reports
+# Person 3 POSTs to http://<host>:8765/ingest/graph
 ```
 
 ---
@@ -83,16 +101,14 @@ python3 insight_engine/engine.py --graph-dir /shared/movement_graphs --out-dir /
 |---|---|---|
 | `GET` | `/analytics/insights` | Flat JSON array of `{ zone_id, insight_type, message, confidence }` |
 
-**Option A — HTTP (recommended):** run the engine with `--serve`:
+**HTTP:** with the engine running (`--serve --api-only`):
 
 ```bash
-python3 insight_engine/engine.py \
-  --graph-dir /shared/movement_graphs \
-  --out-dir /shared/anomaly_reports \
-  --serve --api-port 8765
+curl http://localhost:8765/analytics/insights
+curl http://localhost:8765/health
 ```
 
-Then fetch `http://localhost:8765/analytics/insights` (CORS enabled).
+CORS enabled for browser dashboards.
 
 **Option B — file poll:** read `anomaly_reports/insights_api.json` — same flat array, overwritten each cycle.
 
@@ -173,41 +189,40 @@ Full trigger logic and mock demo mapping: [`insight_engine/DESIGN.md`](insight_e
 
 **Zone labels:** messages use `Sector N` (from `zone_N`). Highlight `zone_id` on the graph.
 
-**Wire-up:** point your file watcher or poll loop at the same `anomaly_reports/` folder Person 4 writes to.
+**Wire-up:** `GET http://localhost:8765/analytics/insights` (see [`DEPLOYMENT.md`](../DEPLOYMENT.md)).
 
 ---
 
 ## Quick start (mock demo)
 
-**Terminal 1**
+From repo root (recommended):
+
 ```bash
-cd mock && python3 generate_mock_snapshots.py
+export NARRATION_BACKEND=disabled
+./scripts/run_demo.sh
 ```
 
-**Terminal 2**
-```bash
-export NARRATION_BACKEND=disabled   # templates only — no API key needed
-python3 insight_engine/engine.py \
-  --graph-dir mock/movement_graphs \
-  --out-dir mock/anomaly_reports
-```
-
-More detail: [`mock/README.md`](mock/README.md)
+Or two terminals manually — see [`DEPLOYMENT.md`](../DEPLOYMENT.md) and [`mock/README.md`](mock/README.md).
 
 ---
 
 ## Production wiring
 
-| Direction | Path |
+| Direction | Contract |
 |---|---|
-| **Input** (Person 3) | `movement_graphs/graph_<timestamp_ms>.json` |
-| **Output** (Person 5) | `anomaly_reports/insights_<timestamp_ms>.json` + `anomaly_reports/events.ndjson` |
+| **Input** (Person 3) | `POST /ingest/graph` |
+| **Output** (Person 5) | `GET /analytics/insights` |
+| **File backup** | `anomaly_reports/` (optional; written each cycle) |
 
 ```bash
+export NARRATION_BACKEND=disabled
 python3 insight_engine/engine.py \
-  --graph-dir /path/to/movement_graphs \
-  --out-dir /path/to/anomaly_reports
+  --serve --api-only \
+  --out-dir /path/to/anomaly_reports \
+  --fresh
 ```
+
+Legacy file ingest: add `--watch-files --graph-dir /path/to/movement_graphs`
 
 ---
 
@@ -215,11 +230,12 @@ python3 insight_engine/engine.py \
 
 ```
 insight_engine/
-  engine.py        — watch loop, I/O
+  engine.py        — REST API + optional file watch
   detection.py     — signal extraction
   alert_state.py   — alert lifecycle
   narration.py     — message generation
-mock/              — demo snapshot generator + soak test
+mock/              — demo snapshot generator (POST or files)
+scripts/           — run_demo.sh, reset_demo.sh, preflight.sh
 ```
 
 ---

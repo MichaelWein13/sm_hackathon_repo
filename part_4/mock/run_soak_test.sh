@@ -1,23 +1,31 @@
 #!/usr/bin/env bash
-# 5-minute continuous run: mock generator + insight engine together.
+# 5-minute continuous run: REST API engine + mock POST generator.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 STEPS="${1:-100}"
 INTERVAL="${2:-3}"
+API_PORT="${FLOORFLOW_API_PORT:-8767}"
 
 echo "Soak test: ${STEPS} steps × ${INTERVAL}s ≈ $(( STEPS * INTERVAL / 60 )) min"
+echo "API port: ${API_PORT}"
 
-rm -f "$ROOT/mock/movement_graphs/"*.json
 rm -f "$ROOT/mock/anomaly_reports/insights_"*.json
 rm -f "$ROOT/mock/anomaly_reports/events.ndjson"
+rm -f "$ROOT/mock/anomaly_reports/insights_api.json"
+
+if command -v fuser >/dev/null 2>&1; then
+  fuser -k "${API_PORT}/tcp" 2>/dev/null || true
+  sleep 0.5
+fi
 
 export NARRATION_BACKEND=disabled
 
 python3 "$ROOT/insight_engine/engine.py" \
-  --graph-dir "$ROOT/mock/movement_graphs" \
+  --serve --api-only \
+  --api-port "$API_PORT" \
   --out-dir "$ROOT/mock/anomaly_reports" \
-  --interval 1 &
+  --fresh &
 ENGINE_PID=$!
 
 cleanup() {
@@ -28,7 +36,10 @@ trap cleanup EXIT
 
 sleep 1
 
-python3 "$ROOT/mock/generate_mock_snapshots.py" --steps "$STEPS" --interval "$INTERVAL"
+python3 "$ROOT/mock/generate_mock_snapshots.py" \
+  --api-url "http://127.0.0.1:${API_PORT}/ingest/graph" \
+  --steps "$STEPS" \
+  --interval "$INTERVAL"
 
 INSIGHTS=$(ls -1 "$ROOT/mock/anomaly_reports/insights_"*.json 2>/dev/null | wc -l)
 EVENTS=$(wc -l < "$ROOT/mock/anomaly_reports/events.ndjson" 2>/dev/null || echo 0)

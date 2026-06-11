@@ -2,19 +2,24 @@
 FloorFlow — Insight, Anomaly & Prediction Engine
 Main entry point.
 
-Watches movement_graphs/ for new snapshot files from Person 3.
-On each new file: runs detection, updates alert state, writes outputs to anomaly_reports/.
+Primary integration (REST):
+  python3 engine.py --serve --api-only --out-dir ../anomaly_reports
+
+  Person 3: POST /ingest/graph
+  Person 5: GET  /analytics/insights
+
+Legacy file watch (optional):
+  python3 engine.py --watch-files --graph-dir ../movement_graphs --out-dir ../anomaly_reports
 
 Usage:
-  python3 engine.py                              # watch with defaults
-  python3 engine.py --graph-dir ../movement_graphs --out-dir ../anomaly_reports
-  python3 engine.py --interval 2                 # poll every 2 seconds
-  python3 engine.py --once graph.json            # one-shot mode for testing
+  python3 engine.py --serve --api-only           # REST server (recommended)
+  python3 engine.py --once graph.json            # one-shot file test
 """
 
 import argparse
 import json
 import logging
+import os
 import sys
 import threading
 import time
@@ -41,10 +46,29 @@ INPUT_GLOB       = "*.json"           # matches any JSON file in movement_graphs
 OUTPUT_SNAPSHOT  = "insights_{ts}.json"
 OUTPUT_EVENTS    = "events.ndjson"
 OUTPUT_PERSON5   = "insights_api.json"  # Person 5: flat array, always latest
+INGEST_API_PATH  = "/ingest/graph"      # Person 3: POST movement graph snapshot
 PERSON5_API_PATH = "/analytics/insights"
+HEALTH_API_PATH  = "/health"
 
 import re as _re
 _TS_FROM_FILENAME = _re.compile(r"graph_(\d+)\.json$")
+
+
+def _filename_ts(path: Path) -> int | None:
+    m = _TS_FROM_FILENAME.search(path.name)
+    return int(m.group(1)) if m else None
+
+
+def _file_sort_key(path: Path) -> tuple:
+    """Sort graph snapshots by logical timestamp (filename), then mtime."""
+    ts = _filename_ts(path)
+    if ts is not None:
+        return (0, ts)
+    try:
+        return (1, int(path.stat().st_mtime * 1000))
+    except OSError:
+        return (2, 0)
+
 
 def _extract_ts(path: Path, snapshot: dict) -> int:
     """
@@ -56,9 +80,27 @@ def _extract_ts(path: Path, snapshot: dict) -> int:
     m = _TS_FROM_FILENAME.search(path.name)
     if m:
         return int(m.group(1))
+    return _snapshot_ts(snapshot, fallback=int(path.stat().st_mtime * 1000))
+
+
+def _snapshot_ts(snapshot: dict, fallback: int | None = None) -> int:
     if "snapshot_ts" in snapshot:
         return int(snapshot["snapshot_ts"])
-    return int(path.stat().st_mtime * 1000)
+    return fallback if fallback is not None else int(time.time() * 1000)
+
+
+def _validate_graph(snapshot: dict) -> str | None:
+    """Returns an error message if the payload is not a usable graph snapshot."""
+    if not isinstance(snapshot, dict):
+        return "body must be a JSON object"
+    for key in ("nodes", "edges", "zone_stats", "time_windows"):
+        if key not in snapshot:
+            return f"missing required field: {key}"
+    if not isinstance(snapshot["nodes"], list):
+        return "nodes must be an array"
+    if not isinstance(snapshot["edges"], list):
+        return "edges must be an array"
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -150,11 +192,11 @@ class DirectoryWatcher:
         self._seen: set[str] = set()
 
     def poll(self) -> list[Path]:
-        """Returns newly appeared files since last call, sorted by mtime."""
+        """Returns newly appeared files since last call, sorted by logical timestamp."""
         try:
             files = sorted(
                 self.watch_dir.glob(INPUT_GLOB),
-                key=lambda p: p.stat().st_mtime,
+                key=_file_sort_key,
             )
         except OSError:
             return []
@@ -163,6 +205,52 @@ class DirectoryWatcher:
         for f in new_files:
             self._seen.add(f.name)
         return new_files
+
+
+# ---------------------------------------------------------------------------
+# Shared runtime (REST + optional file watch)
+# ---------------------------------------------------------------------------
+
+class EngineRuntime:
+    """Thread-safe state for POST /ingest/graph and optional file watching."""
+
+    def __init__(self, out_dir: Path, fresh: bool = False):
+        self.out_dir = out_dir
+        self.out_dir.mkdir(parents=True, exist_ok=True)
+        self.lock = threading.Lock()
+        self.state_manager = AlertStateManager()
+        self.engine_state = {
+            "ewma":            {},
+            "edge_history":    set(),
+            "zone_history":    {},
+            "total_snapshots": 0,
+        }
+        if fresh:
+            events_file = self.out_dir / OUTPUT_EVENTS
+            if events_file.exists():
+                events_file.unlink()
+            logger.info("--fresh: cleared events.ndjson for a clean run")
+        if not (self.out_dir / OUTPUT_PERSON5).exists():
+            _atomic_write(self.out_dir / OUTPUT_PERSON5, "[]")
+
+    def ingest(self, snapshot: dict, snapshot_ts: int | None = None) -> dict:
+        err = _validate_graph(snapshot)
+        if err:
+            raise ValueError(err)
+
+        with self.lock:
+            ts = snapshot_ts if snapshot_ts is not None else _snapshot_ts(snapshot)
+            logger.info(f"Ingesting graph snapshot ts={ts}")
+            active_alerts = process_snapshot(
+                snapshot, self.state_manager, self.engine_state, self.out_dir, ts
+            )
+            return {
+                "ok":           True,
+                "snapshot_ts":  ts,
+                "cycle":        self.state_manager.cycle,
+                "alert_count":  len(active_alerts),
+                "insights":     [_alert_to_person5_dict(a) for a in active_alerts],
+            }
 
 
 # ---------------------------------------------------------------------------
@@ -175,7 +263,7 @@ def process_snapshot(
     engine_state: dict,
     out_dir: Path,
     snapshot_ts: int,
-):
+) -> list:
     signals = analyze_snapshot(
         snapshot=snapshot,
         ewma_state=engine_state["ewma"],
@@ -199,20 +287,12 @@ def process_snapshot(
         logger.info(
             f"  [{ev['event'].upper():12}] {ev['alert_id']}  severity={sev}"
         )
+    return active_alerts
 
 
-def run_watch(graph_dir: Path, out_dir: Path, interval: float):
-    out_dir.mkdir(parents=True, exist_ok=True)
-    logger.info(f"Watching {graph_dir}  →  {out_dir}  (poll every {interval}s)")
-
-    watcher       = DirectoryWatcher(graph_dir)
-    state_manager = AlertStateManager()
-    engine_state  = {
-        "ewma":             {},
-        "edge_history":     set(),
-        "zone_history":     {},
-        "total_snapshots":  0,
-    }
+def run_watch(runtime: EngineRuntime, graph_dir: Path, interval: float):
+    logger.info(f"Watching {graph_dir}  →  {runtime.out_dir}  (poll every {interval}s)")
+    watcher = DirectoryWatcher(graph_dir)
 
     while True:
         new_files = watcher.poll()
@@ -221,50 +301,120 @@ def run_watch(graph_dir: Path, out_dir: Path, interval: float):
                 snapshot = json.loads(path.read_text(encoding="utf-8"))
                 snapshot_ts = _extract_ts(path, snapshot)
                 logger.info(f"Processing {path.name}")
-                process_snapshot(snapshot, state_manager, engine_state, out_dir, snapshot_ts)
+                runtime.ingest(snapshot, snapshot_ts=snapshot_ts)
             except Exception as e:
                 logger.error(f"Failed to process {path.name}: {e}")
 
         time.sleep(interval)
 
 
-def _make_person5_handler(out_dir: Path):
-    api_file = out_dir / OUTPUT_PERSON5
+def _send_json(handler: BaseHTTPRequestHandler, status: int, payload: dict | list | str):
+    if isinstance(payload, str):
+        body = payload
+    else:
+        body = json.dumps(payload, separators=(",", ":"))
+    encoded = body.encode("utf-8")
+    handler.send_response(status)
+    handler.send_header("Content-Type", "application/json")
+    handler.send_header("Content-Length", str(len(encoded)))
+    handler.send_header("Access-Control-Allow-Origin", "*")
+    handler.end_headers()
+    handler.wfile.write(encoded)
 
-    class Person5Handler(BaseHTTPRequestHandler):
+
+def _make_api_handler(runtime: EngineRuntime):
+    api_file = runtime.out_dir / OUTPUT_PERSON5
+
+    class FloorFlowHandler(BaseHTTPRequestHandler):
+        def _route(self) -> str:
+            return self.path.split("?", 1)[0]
+
+        def _set_cors(self):
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
+        def do_OPTIONS(self):
+            self.send_response(204)
+            self._set_cors()
+            self.end_headers()
+
         def do_GET(self):
-            if self.path.split("?", 1)[0] != PERSON5_API_PATH:
+            route = self._route()
+            if route == HEALTH_API_PATH:
+                _send_json(self, 200, {
+                    "status": "ok",
+                    "ingest": INGEST_API_PATH,
+                    "insights": PERSON5_API_PATH,
+                })
+                return
+            if route == PERSON5_API_PATH:
+                try:
+                    body = api_file.read_text(encoding="utf-8") if api_file.exists() else "[]"
+                except OSError:
+                    self.send_error(500)
+                    return
+                _send_json(self, 200, body)
+                return
+            self.send_error(404)
+
+        def do_POST(self):
+            if self._route() != INGEST_API_PATH:
                 self.send_error(404)
                 return
+            length = int(self.headers.get("Content-Length", 0))
             try:
-                body = api_file.read_text(encoding="utf-8") if api_file.exists() else "[]"
-            except OSError:
-                self.send_error(500)
-                return
-            encoded = body.encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(encoded)))
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(encoded)
+                raw = self.rfile.read(length)
+                snapshot = json.loads(raw.decode("utf-8"))
+                result = runtime.ingest(snapshot)
+                _send_json(self, 200, result)
+            except json.JSONDecodeError:
+                _send_json(self, 400, {"ok": False, "error": "invalid JSON"})
+            except ValueError as e:
+                _send_json(self, 400, {"ok": False, "error": str(e)})
+            except Exception as e:
+                logger.error(f"POST {INGEST_API_PATH} failed: {e}")
+                _send_json(self, 500, {"ok": False, "error": "internal error"})
 
         def log_message(self, format, *args):
             logger.debug("API %s", format % args)
 
-    return Person5Handler
+    return FloorFlowHandler
 
 
-def start_person5_api(out_dir: Path, port: int) -> ThreadingHTTPServer:
-    out_dir.mkdir(parents=True, exist_ok=True)
-    if not (out_dir / OUTPUT_PERSON5).exists():
-        _atomic_write(out_dir / OUTPUT_PERSON5, "[]")
-    server = ThreadingHTTPServer(("0.0.0.0", port), _make_person5_handler(out_dir))
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
+class _ReuseHTTPServer(ThreadingHTTPServer):
+    allow_reuse_address = True
+
+
+def start_api_server(
+    runtime: EngineRuntime,
+    port: int,
+    *,
+    blocking: bool = False,
+) -> ThreadingHTTPServer:
+    try:
+        server = _ReuseHTTPServer(("0.0.0.0", port), _make_api_handler(runtime))
+    except OSError as e:
+        if e.errno == 98:  # Address already in use
+            logger.error(
+                f"Port {port} is already in use. "
+                f"Stop the old engine:  fuser -k {port}/tcp"
+            )
+        raise
     logger.info(
-        f"Person 5 API listening on http://0.0.0.0:{port}{PERSON5_API_PATH}"
+        f"API http://0.0.0.0:{port}"
+        f"  POST {INGEST_API_PATH}  GET {PERSON5_API_PATH}  GET {HEALTH_API_PATH}"
     )
+    if blocking:
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            logger.info("Stopped.")
+        finally:
+            server.shutdown()
+    else:
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
     return server
 
 
@@ -293,12 +443,16 @@ def main():
         description="FloorFlow — Insight, Anomaly & Prediction Engine"
     )
     parser.add_argument(
-        "--graph-dir", default="../movement_graphs",
-        help="Directory to watch for graph snapshots from Person 3 (default: ../movement_graphs)",
+        "--graph-dir",
+        default=os.environ.get("FLOORFLOW_GRAPH_DIR", "../movement_graphs"),
+        help="Directory to watch for graph snapshots from Person 3 "
+             "(default: ../movement_graphs or $FLOORFLOW_GRAPH_DIR)",
     )
     parser.add_argument(
-        "--out-dir", default="../anomaly_reports",
-        help="Directory to write insights and events to (default: ../anomaly_reports)",
+        "--out-dir",
+        default=os.environ.get("FLOORFLOW_OUT_DIR", "../anomaly_reports"),
+        help="Directory to write insights and events to "
+             "(default: ../anomaly_reports or $FLOORFLOW_OUT_DIR)",
     )
     parser.add_argument(
         "--interval", type=float, default=2.0,
@@ -310,28 +464,66 @@ def main():
     )
     parser.add_argument(
         "--serve", action="store_true",
-        help=f"Expose Person 5 API at GET {PERSON5_API_PATH} (uses --api-port)",
+        help=f"Start HTTP API (POST {INGEST_API_PATH}, GET {PERSON5_API_PATH})",
     )
     parser.add_argument(
-        "--api-port", type=int, default=8765,
-        help="Port for Person 5 API when --serve is set (default: 8765)",
+        "--api-only", action="store_true",
+        help="Run HTTP API only — no file watching (recommended integration mode)",
+    )
+    parser.add_argument(
+        "--watch-files", action="store_true",
+        help="Also poll --graph-dir for graph_*.json (legacy; off by default with --api-only)",
+    )
+    parser.add_argument(
+        "--api-port",
+        type=int,
+        default=int(os.environ.get("FLOORFLOW_API_PORT", "8765")),
+        help="API port (default: 8765 or $FLOORFLOW_API_PORT)",
+    )
+    parser.add_argument(
+        "--fresh", action="store_true",
+        help="Clear events.ndjson on startup (use when restarting mid-demo)",
     )
     args = parser.parse_args()
 
     graph_dir = Path(args.graph_dir)
     out_dir   = Path(args.out_dir)
 
-    api_server = None
-    if args.serve:
-        api_server = start_person5_api(out_dir, args.api_port)
-
     if args.once:
         run_once(Path(args.once), out_dir)
-    else:
+        return
+
+    if args.api_only and not args.serve:
+        args.serve = True
+
+    if not args.serve and not args.watch_files:
+        parser.error("Specify --serve (REST) and/or --watch-files (legacy file poll)")
+
+    runtime = EngineRuntime(out_dir, fresh=args.fresh)
+    api_server = None
+
+    if args.api_only:
+        start_api_server(runtime, args.api_port, blocking=True)
+        return
+
+    if args.serve:
+        api_server = start_api_server(runtime, args.api_port, blocking=False)
+
+    if args.watch_files:
         if not graph_dir.exists():
             logger.warning(f"graph-dir {graph_dir} does not exist yet — will keep checking")
         try:
-            run_watch(graph_dir, out_dir, args.interval)
+            run_watch(runtime, graph_dir, args.interval)
+        except KeyboardInterrupt:
+            logger.info("Stopped.")
+        finally:
+            if api_server:
+                api_server.shutdown()
+    elif args.serve:
+        logger.info("API running — waiting for POST requests (Ctrl-C to stop)")
+        try:
+            while True:
+                time.sleep(3600)
         except KeyboardInterrupt:
             logger.info("Stopped.")
         finally:

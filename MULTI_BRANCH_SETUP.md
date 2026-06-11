@@ -64,24 +64,35 @@ All folders appear in the sidebar at once.
 
 ## Wire-up by role
 
-| Person | Writes to | Reads from |
-|--------|-----------|------------|
+| Person | Sends / writes | Reads from |
+|--------|----------------|------------|
 | 1 — Signals | standardized JSON (feeds Person 2) | raw BLE / Wi-Fi data |
 | 2 — Zones | zone assignments (feeds Person 3) | Person 1 output |
-| 3 — Movement graph | `floorflow-io/movement_graphs/graph_<ts>.json` | zone data from Person 2 |
-| 4 — Insight engine | `floorflow-io/anomaly_reports/` | `floorflow-io/movement_graphs/` |
-| 5 — Visualization | — | `floorflow-io/anomaly_reports/` + movement graphs |
+| 3 — Movement graph | `POST http://localhost:8765/ingest/graph` | zone data from Person 2 |
+| 4 — Insight engine | `floorflow-io/anomaly_reports/` (file backup) | `POST /ingest/graph` |
+| 5 — Visualization | — | `GET http://localhost:8765/analytics/insights` |
 
-**Person 4 example:**
+**Start Person 4 (from repo root):**
 
 ```bash
-cd sm_hackathon_repo/part_4
+./scripts/run_demo.sh --engine-only
+# or:
+cd part_4
 python3 insight_engine/engine.py \
-  --graph-dir ../../floorflow-io/movement_graphs \
-  --out-dir ../../floorflow-io/anomaly_reports
+  --serve --api-only \
+  --out-dir ../../floorflow-io/anomaly_reports \
+  --fresh
 ```
 
-Point your own code at the same paths via config or CLI flags — the folders are shared on disk, so no branch merging is needed for integration testing.
+**Person 3 pushes a snapshot:**
+
+```bash
+curl -X POST http://127.0.0.1:8765/ingest/graph \
+  -H "Content-Type: application/json" \
+  -d @final_movement_graph.json
+```
+
+See [`DEPLOYMENT.md`](DEPLOYMENT.md) for full run modes and troubleshooting.
 
 ## Day-to-day workflow
 

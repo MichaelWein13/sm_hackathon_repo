@@ -17,16 +17,17 @@ It does not produce static reports. It tracks developing situations across cycle
 ```
 Person 3 (Movement Graph)
         │
-        │  movement_graphs/graph_<timestamp_ms>.json  (continuous)
+        │  POST /ingest/graph  (primary)
+        │  or movement_graphs/graph_<ts>.json  (legacy --watch-files)
         ▼
  insight_engine/              ← you are here
-   engine.py       — watch loop, I/O
+   engine.py       — REST API + optional file watch
    detection.py    — signal extraction (stateless)
    alert_state.py  — lifecycle, hysteresis, memory
    narration.py    — message generation (LLM + templates)
         │
-        │  anomaly_reports/insights_<ts>.json
-        │  anomaly_reports/events.ndjson
+        │  GET /analytics/insights  → Person 5
+        │  anomaly_reports/  (optional file backup)
         ▼
 Person 5 (Visualization)
 ```
@@ -37,7 +38,7 @@ Person 5 (Visualization)
 
 | Module | Role |
 |---|---|
-| `engine.py` | Polls `movement_graphs/`, orchestrates each cycle, writes outputs atomically |
+| `engine.py` | REST API (`POST /ingest/graph`, `GET /analytics/insights`), optional file watch, writes outputs |
 | `detection.py` | Pure functions: accumulation, intra-trend, EWMA drift, structural change, cascade, convergence → per-zone urgency |
 | `alert_state.py` | Alert lifecycle (`detecting → warning → critical → resolving → resolved`), hysteresis, pattern memory |
 | `narration.py` | Turns signals into incident-commander messages; LLM primary, templates fallback |
@@ -163,9 +164,11 @@ See FINAL_VISION for full schema. Summary:
 
 ## Input Contract
 
-Person 3 writes `movement_graphs/graph_<timestamp_ms>.json`. Each file is a complete graph snapshot including cumulative `time_windows`.
+**Primary:** Person 3 `POST /ingest/graph` with a complete graph JSON body (including cumulative `time_windows`). Optional `snapshot_ts` field (ms); defaults to server time.
 
-Engine reads `snapshot_ts` from filename first, then JSON field, then file mtime.
+**Legacy:** `movement_graphs/graph_<timestamp_ms>.json` via `--watch-files`.
+
+Required fields: `nodes`, `edges`, `zone_stats`, `time_windows`.
 
 ---
 
@@ -202,15 +205,20 @@ Evaluate each on merit at integration time, not upfront.
 ## Usage
 
 ```bash
-# Demo (two terminals)
-cd mock && python3 generate_mock_snapshots.py
-python3 insight_engine/engine.py --graph-dir mock/movement_graphs --out-dir mock/anomaly_reports
+# Demo (from repo root)
+./scripts/run_demo.sh
 
-# One-shot test
+# Production API server
+python3 insight_engine/engine.py --serve --api-only --out-dir ../anomaly_reports --fresh
+
+# Person 3 pushes snapshots
+curl -X POST http://localhost:8765/ingest/graph -H "Content-Type: application/json" -d @graph.json
+
+# One-shot file test (no server)
 python3 insight_engine/engine.py --once path/to/graph.json --out-dir anomaly_reports
 
-# Production (Person 3's output folder)
-python3 insight_engine/engine.py --graph-dir ../movement_graphs --out-dir ../anomaly_reports
+# Legacy file watch
+python3 insight_engine/engine.py --serve --watch-files --graph-dir ../movement_graphs --out-dir ../anomaly_reports
 
 # 5-minute soak test
 ./mock/run_soak_test.sh

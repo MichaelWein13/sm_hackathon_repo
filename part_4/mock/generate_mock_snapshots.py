@@ -25,6 +25,8 @@ Run this in one terminal, the engine in another:
 import argparse
 import json
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 OUTPUT_DIR = Path(__file__).parent / "movement_graphs"
@@ -205,6 +207,18 @@ def make_snapshot(step: int, base_ts: int) -> dict:
     }
 
 
+def _post_snapshot(api_url: str, snapshot: dict) -> dict:
+    data = json.dumps(snapshot).encode("utf-8")
+    req = urllib.request.Request(
+        api_url,
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
 def main():
     parser = argparse.ArgumentParser(description="FloorFlow mock graph snapshot generator")
     parser.add_argument(
@@ -215,24 +229,48 @@ def main():
         "--interval", type=float, default=DEFAULT_INTERVAL_S,
         help=f"Seconds between snapshots (default: {DEFAULT_INTERVAL_S})",
     )
+    parser.add_argument(
+        "--out-dir", type=Path, default=OUTPUT_DIR,
+        help=f"Directory for graph_<ts>.json files (default: {OUTPUT_DIR})",
+    )
+    parser.add_argument(
+        "--api-url",
+        default=None,
+        help="POST snapshots to Person 4 REST API (e.g. http://127.0.0.1:8765/ingest/graph)",
+    )
     args = parser.parse_args()
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    out_dir = args.out_dir
+    if not args.api_url:
+        out_dir.mkdir(parents=True, exist_ok=True)
 
     base_ts = int(time.time() * 1000)
-    print(f"Writing {args.steps} snapshots to {OUTPUT_DIR}/")
+    if args.api_url:
+        print(f"POSTing {args.steps} snapshots to {args.api_url}")
+    else:
+        print(f"Writing {args.steps} snapshots to {out_dir}/")
     print(f"Interval: {args.interval}s per step  |  Ctrl-C to stop\n")
 
     for step in range(args.steps):
         snapshot = make_snapshot(step, base_ts)
         ts       = base_ts + step * WINDOW_MS
-        path     = OUTPUT_DIR / f"graph_{ts}.json"
-        path.write_text(json.dumps(snapshot, indent=2), encoding="utf-8")
-
         z3_in  = _at(Z1_TO_Z3, step) + _at(Z4_TO_Z3, step)
         z3_out = _z3_outbound(step, z3_in)
+
+        if args.api_url:
+            try:
+                result = _post_snapshot(args.api_url, snapshot)
+                label = f"cycle={result.get('cycle', '?')} alerts={result.get('alert_count', '?')}"
+            except urllib.error.URLError as e:
+                print(f"  step {step:2d}  →  POST failed: {e}")
+                raise
+        else:
+            path = out_dir / f"graph_{ts}.json"
+            path.write_text(json.dumps(snapshot, indent=2), encoding="utf-8")
+            label = path.name
+
         print(
-            f"  step {step:2d}  →  {path.name}"
+            f"  step {step:2d}  →  {label}"
             f"   z3_in={z3_in:2d}  z3_out={z3_out:2d}"
             f"   z4={'active' if step >= 2 else 'absent'}"
         )

@@ -1,27 +1,52 @@
 # Mock Data & Demo — Person 4 (Insight Engine)
 
-Simulates Person 3's output so you can run and demo the insight engine without the full pipeline.
+Simulates Person 3 by POSTing movement graph snapshots to the insight engine REST API.
 
 ---
 
-## Quick demo (two terminals)
+## Quick demo (recommended)
 
-**Terminal 1 — generate movement graph snapshots:**
+From `sm_hackathon_repo` root:
+
 ```bash
-cd mock
-python3 generate_mock_snapshots.py
+./scripts/run_demo.sh
 ```
 
-**Terminal 2 — run the insight engine:**
+Starts the engine, POSTs 12 snapshots, leaves the API running for Person 5.
+
+---
+
+## Manual two-terminal demo
+
+**Terminal 1 — engine**
 ```bash
+export NARRATION_BACKEND=disabled
 python3 insight_engine/engine.py \
-  --graph-dir mock/movement_graphs \
-  --out-dir mock/anomaly_reports
+  --serve --api-only \
+  --out-dir ../floorflow-io/anomaly_reports \
+  --fresh
 ```
 
-Clear stale snapshots before a clean demo run:
+**Terminal 2 — mock Person 3**
 ```bash
-rm -f mock/movement_graphs/*.json mock/anomaly_reports/insights_*.json mock/anomaly_reports/events.ndjson
+python3 mock/generate_mock_snapshots.py \
+  --api-url http://127.0.0.1:8765/ingest/graph
+```
+
+Verify Person 5 output:
+```bash
+curl -s http://127.0.0.1:8765/analytics/insights | python3 -m json.tool | head
+```
+
+Confirm the server supports ingest (not a stale old process):
+```bash
+curl -s http://127.0.0.1:8765/health | python3 -m json.tool
+# must include: "ingest": "/ingest/graph"
+```
+
+If port is busy or POST returns `501`:
+```bash
+fuser -k 8765/tcp
 ```
 
 ---
@@ -41,8 +66,13 @@ Default run: **12 snapshots**, one every **3 seconds** (~36 s total).
 ## Generator options
 
 ```bash
-python3 generate_mock_snapshots.py --steps 12 --interval 3   # demo (default)
-python3 generate_mock_snapshots.py --steps 100 --interval 3  # 5-minute soak test
+# REST (integration / demo)
+python3 mock/generate_mock_snapshots.py \
+  --api-url http://127.0.0.1:8765/ingest/graph \
+  --steps 12 --interval 3
+
+# Legacy files (local debugging only)
+python3 mock/generate_mock_snapshots.py --out-dir mock/movement_graphs
 ```
 
 Traffic tables loop after 12 steps for long runs.
@@ -51,40 +81,40 @@ Traffic tables loop after 12 steps for long runs.
 
 ## 5-minute soak test
 
-Runs generator + engine together for stability checking:
-
 ```bash
 ./mock/run_soak_test.sh
 ```
 
-Or manually:
+Or manually with REST:
 ```bash
-rm -f mock/movement_graphs/*.json mock/anomaly_reports/*
-NARRATION_BACKEND=disabled python3 insight_engine/engine.py \
-  --graph-dir mock/movement_graphs --out-dir mock/anomaly_reports --interval 1 &
-python3 mock/generate_mock_snapshots.py --steps 100 --interval 3
+fuser -k 8767/tcp 2>/dev/null || true
+export NARRATION_BACKEND=disabled
+python3 insight_engine/engine.py \
+  --serve --api-only --api-port 8767 \
+  --out-dir mock/anomaly_reports --fresh &
+sleep 1
+python3 mock/generate_mock_snapshots.py \
+  --api-url http://127.0.0.1:8767/ingest/graph \
+  --steps 100 --interval 3
 ```
 
 ---
 
-## Output (for Person 5)
+## Output
 
-The engine writes to `mock/anomaly_reports/` (or `../anomaly_reports/` in production):
+Each POST still writes backup files to `--out-dir` (default `../floorflow-io/anomaly_reports/` in production):
 
 | File | Contents |
 |---|---|
 | `insights_<timestamp_ms>.json` | Per-cycle snapshot: `summary`, `alerts[]`, `cycle`, `elapsed_seconds` |
+| `insights_api.json` | Flat array — same as `GET /analytics/insights` |
 | `events.ndjson` | Append-only event stream: `new`, `escalated`, `de_escalated`, `updated`, `resolved` |
 
-**Alert fields:** `id`, `zone_id`, `insight_type`, `severity`, `message`, `confidence`, `first_seen_ts`, `last_updated_ts`, `cycle_count`
-
-**Severity values:** `detecting`, `warning`, `critical`, `resolving`, `resolved`
-
-**Insight types:** `congestion_forecast`, `bottleneck_risk`, `high_dwell_zone`, `anomaly`, `unexpected_transition`
+**Insight types:** see [`insight_engine/DESIGN.md`](../insight_engine/DESIGN.md#insight-types).
 
 ---
 
-## One-shot test (single file)
+## One-shot test (single file, no server)
 
 ```bash
 python3 insight_engine/engine.py \
@@ -97,12 +127,7 @@ python3 insight_engine/engine.py \
 ## Environment
 
 ```bash
-# Use template messages only (no API key needed — recommended for demo)
-export NARRATION_BACKEND=disabled
-
-# Optional LLM narration
-export OPENAI_API_KEY=sk-...
-export NARRATION_MODEL=gpt-4o-mini
+export NARRATION_BACKEND=disabled   # templates only — recommended for demo
 ```
 
 Install optional deps: `pip install -r requirements.txt`
