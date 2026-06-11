@@ -1,0 +1,94 @@
+{
+    "person3_output": {
+        "zones": [
+            {
+                "name": "zone_1",
+                "out_edges": [
+                    {
+                        "name": "zone_2",
+                        " transition_count ": 18,
+                        " transition_probability ": 0.72
+                    },
+                    {
+                        "name": "zone_3",
+                        " transition_count ": 18,
+                        " transition_probability ": 0.72
+                    }
+                ],
+                "in_edges": [
+                    {
+                        "name": "zone_2",
+                        " transition_count ": 14,
+                        " transition_probability ": 0.52
+                    }
+                ],
+                "stats": {
+                    "avg_dwell_ms": 4200,
+                    "visit_count": 31
+                }
+            }
+        ],
+        " time_windows ": [
+            {
+                " window_start_ms ": 1710000000000,
+                " window_end_ms ": 1710000300000,
+                " window_graph ": {
+                    " nodes ": [
+                        {
+                            "name": "zone_1",
+                            "out_edges": [
+                                {
+                                    "name": "zone_2",
+                                    " transition_count ": 18,
+                                    " transition_probability ": 0.72
+                                },
+                                {
+                                    "name": "zone_3",
+                                    " transition_count ": 18,
+                                    " transition_probability ": 0.72
+                                }
+                            ],
+                            "in_edges": [
+                                {
+                                    "name": "zone_2",
+                                    " transition_count ": 14,
+                                    " transition_probability ": 0.52
+                                }
+                            ]
+                        },
+                        {
+                            "name": "zone_2",
+                            "out_edges": [],
+                            "in_edges": [
+                                {
+                                    "name": "zone_1",
+                                    " transition_count ": 18,
+                                    " transition_probability ": 0.72
+                                }
+                            ]
+                        },
+                        {
+                            "name": "zone_3",
+                            "out_edges": [],
+                            "in_edges": [
+                                {
+                                    "name": "zone_1",
+                                    " transition_count ": 18,
+                                    " transition_probability ": 0.72
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    "person4_output": [
+        {
+            " zone_id ": "zone_3",
+            " insight_type ": "bottleneck_risk",
+            " message ": " Zone 3 is likely to become congested soon .",
+            " confidence ": 0.77
+        }
+    ]
+}
