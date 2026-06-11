@@ -8,7 +8,7 @@
 #   ./scripts/run_demo.sh --mock-only       # run mock generator only (engine already up)
 #
 # Environment:
-#   FLOORFLOW_IO       Shared I/O root (default: ../../floorflow-io from part_4_insight_reporting/)
+#   FLOORFLOW_IO       Shared I/O root (default: ../../floorflow-io from person_4_insight_reporting/)
 #   FLOORFLOW_API_PORT API port (default: 8765)
 #   DEMO_STEPS         Mock snapshots (default: 12)
 #   DEMO_INTERVAL      Seconds between snapshots (default: 3)

@@ -6,7 +6,7 @@ Simulates Person 3 by POSTing movement graph snapshots to the insight engine RES
 
 ## Quick demo (recommended)
 
-From `part_4_insight_reporting/`:
+From `person_4_insight_reporting/`:
 
 ```bash
 ./scripts/run_demo.sh
