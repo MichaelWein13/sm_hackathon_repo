@@ -218,7 +218,7 @@ Full trigger logic and mock demo mapping: [`insight_engine/DESIGN.md`](insight_e
 
 **Zone labels:** messages use `Sector N` (from `zone_N`). Highlight `zone_id` on the graph.
 
-**Wire-up:** `GET http://localhost:8765/analytics/stream` (see [`DEPLOYMENT.md`](../DEPLOYMENT.md)).
+**Wire-up:** `GET http://localhost:8765/analytics/stream` (see [`DEPLOYMENT.md`](DEPLOYMENT.md)).
 
 ---
 
@@ -229,7 +229,7 @@ Person 4 now pushes live updates over **Server-Sent Events**. Replace polling wi
 #### 1. Start Part 4 first
 
 ```bash
-cd sm_hackathon_repo/part_4
+cd part_4   # from sm_hackathon_repo checkout
 export NARRATION_BACKEND=disabled
 python3 insight_engine/engine.py --serve --api-only --out-dir ../../floorflow-io/anomaly_reports --fresh
 ```
@@ -361,7 +361,7 @@ Same fields as `GET /analytics/alerts` plus embedded `summary`:
 ```bash
 curl -sN http://127.0.0.1:8765/analytics/stream
 # In another terminal, feed mock data:
-python3 part_4/mock/generate_mock_snapshots.py --api-url http://127.0.0.1:8765/ingest/graph
+python3 mock/generate_mock_snapshots.py --api-url http://127.0.0.1:8765/ingest/graph
 ```
 
 You should see `event: snapshot`, then `event: new` / `event: escalated` / `event: cycle_update` as the demo runs.
@@ -379,14 +379,14 @@ curl http://localhost:8765/analytics/summary
 
 ## Quick start (mock demo)
 
-From repo root (recommended):
+From `part_4/` (recommended):
 
 ```bash
 export NARRATION_BACKEND=disabled
 ./scripts/run_demo.sh
 ```
 
-Or two terminals manually — see [`DEPLOYMENT.md`](../DEPLOYMENT.md) and [`mock/README.md`](mock/README.md).
+Or two terminals manually — see [`DEPLOYMENT.md`](DEPLOYMENT.md) and [`mock/README.md`](mock/README.md).
 
 ---
 

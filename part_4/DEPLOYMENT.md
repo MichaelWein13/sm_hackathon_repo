@@ -6,9 +6,11 @@ One-page reference for running the pipeline locally before the demo.
 
 ```
 cs_hackathon/
-├── sm_hackathon_repo/          # Person 4 branch (insight engine + scripts)
-│   ├── part_4/
-│   └── scripts/
+├── sm_hackathon_repo/          # Person 4 branch (part4_iape)
+│   └── part_4/                 # insight engine, scripts, docs
+│       ├── insight_engine/
+│       ├── mock/
+│       └── scripts/
 ├── sm_hackathon-person3/       # Movement graph
 ├── sm_hackathon-person5/       # Visualization
 └── floorflow-io/               # Shared runtime output (not in git)
@@ -18,16 +20,16 @@ cs_hackathon/
 ## Prerequisites
 
 - Python 3.10+
-- Optional: `pip install -r part_4/requirements.txt` (only needed for LLM narration)
+- Optional: `pip install -r requirements.txt` (only needed for LLM narration)
 
 ```bash
-cd sm_hackathon_repo
+cd sm_hackathon_repo/part_4
 python3 --version
 ```
 
 ## Quick demo (mock data)
 
-From the repo root:
+From `part_4/` (Person 4 tree):
 
 ```bash
 chmod +x scripts/*.sh   # first time only
@@ -73,8 +75,8 @@ Start the engine **first**:
 ./scripts/run_demo.sh --engine-only
 # or manually:
 export NARRATION_BACKEND=disabled
-python3 part_4/insight_engine/engine.py \
-  --out-dir ../floorflow-io/anomaly_reports \
+python3 insight_engine/engine.py \
+  --out-dir ../../floorflow-io/anomaly_reports \
   --serve --api-only --fresh
 ```
 
@@ -95,7 +97,7 @@ curl -X POST http://127.0.0.1:8765/ingest/graph \
 | `/analytics/insights` | `GET` | Flat insights array (legacy) |
 | `/health` | `GET` | Liveness check — lists all routes |
 
-Required JSON shape: `nodes`, `edges`, `zone_stats`, `time_windows` (see `part_4/README.md`).
+Required JSON shape: `nodes`, `edges`, `zone_stats`, `time_windows` (see `README.md`).
 
 ### Person 4 → Person 5
 
@@ -109,7 +111,7 @@ Events: `snapshot` (on connect), `cycle_update` (each ingest), plus lifecycle ev
 
 Person 5 should connect with browser `EventSource('/analytics/stream')`. In Create React App, set `"proxy": "http://localhost:8765"` in `package.json` and use the relative URL.
 
-Full migration steps: **`part_4/README.md` → "Person 5 — migration guide (SSE)"**.
+Full migration steps: **`README.md` → "Person 5 — migration guide (SSE)"**.
 
 **REST fallback** (if SSE unavailable):
 
@@ -132,10 +134,10 @@ curl http://127.0.0.1:8765/health
 If Person 3 still writes files instead of POSTing:
 
 ```bash
-python3 part_4/insight_engine/engine.py \
+python3 insight_engine/engine.py \
   --serve --watch-files \
-  --graph-dir ../floorflow-io/movement_graphs \
-  --out-dir ../floorflow-io/anomaly_reports
+  --graph-dir ../../floorflow-io/movement_graphs \
+  --out-dir ../../floorflow-io/anomaly_reports
 ```
 
 ## Manual mock demo (two terminals)
@@ -144,14 +146,14 @@ python3 part_4/insight_engine/engine.py \
 ```bash
 ./scripts/reset_demo.sh
 export NARRATION_BACKEND=disabled
-python3 part_4/insight_engine/engine.py \
-  --out-dir ../floorflow-io/anomaly_reports \
+python3 insight_engine/engine.py \
+  --out-dir ../../floorflow-io/anomaly_reports \
   --serve --api-only --fresh
 ```
 
 **Terminal 2 — mock Person 3**
 ```bash
-python3 part_4/mock/generate_mock_snapshots.py \
+python3 mock/generate_mock_snapshots.py \
   --api-url http://127.0.0.1:8765/ingest/graph
 ```
 
@@ -167,7 +169,7 @@ python3 part_4/mock/generate_mock_snapshots.py \
 | Empty `insights` array | Normal before first POST; check Person 3 is sending valid JSON |
 | Duplicate events after restart | Use `--fresh` or run `./scripts/reset_demo.sh` first |
 | `400 missing required field` | Graph body must include `nodes`, `edges`, `zone_stats`, `time_windows` |
-| Engine crash on bad JSON | Validate payload against `part_4/README.md` |
+| Engine crash on bad JSON | Validate payload against `README.md` |
 
 ## Pre-demo checklist
 
@@ -181,5 +183,5 @@ curl -sN http://127.0.0.1:8765/analytics/stream | head -5
 ## Related docs
 
 - `MULTI_BRANCH_SETUP.md` — worktrees and team layout
-- `part_4/README.md` — full I/O contracts for Person 3 and Person 5
-- `part_4/FINAL_VISION.md` — product spec and demo moment
+- `README.md` — full I/O contracts for Person 3 and Person 5
+- `FINAL_VISION.md` — product spec and demo moment

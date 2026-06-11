@@ -8,7 +8,7 @@
 #   ./scripts/run_demo.sh --mock-only       # run mock generator only (engine already up)
 #
 # Environment:
-#   FLOORFLOW_IO       Shared I/O root (default: ../floorflow-io)
+#   FLOORFLOW_IO       Shared I/O root (default: ../../floorflow-io from part_4/)
 #   FLOORFLOW_API_PORT API port (default: 8765)
 #   DEMO_STEPS         Mock snapshots (default: 12)
 #   DEMO_INTERVAL      Seconds between snapshots (default: 3)
@@ -16,9 +16,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-PART4="$REPO_ROOT/part_4"
-IO_ROOT="${FLOORFLOW_IO:-$(cd "$REPO_ROOT/../floorflow-io" && pwd)}"
+PART4_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+IO_ROOT="${FLOORFLOW_IO:-$(cd "$PART4_ROOT/../floorflow-io" && pwd)}"
 GRAPH_DIR="$IO_ROOT/movement_graphs"
 OUT_DIR="$IO_ROOT/anomaly_reports"
 API_PORT="${FLOORFLOW_API_PORT:-8765}"
@@ -72,7 +71,7 @@ cleanup() {
 }
 
 run_engine() {
-  python3 "$PART4/insight_engine/engine.py" \
+  python3 "$PART4_ROOT/insight_engine/engine.py" \
     --out-dir "$OUT_DIR" \
     --serve --api-only --api-port "$API_PORT" \
     --fresh \
@@ -135,7 +134,7 @@ fi
 if [[ "$ENGINE_ONLY" != true ]]; then
   echo ""
   echo "Running mock graph generator (${DEMO_STEPS} steps × ${DEMO_INTERVAL}s)..."
-  python3 "$PART4/mock/generate_mock_snapshots.py" \
+  python3 "$PART4_ROOT/mock/generate_mock_snapshots.py" \
     --api-url "$API_URL" \
     --steps "$DEMO_STEPS" \
     --interval "$DEMO_INTERVAL"
