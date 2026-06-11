@@ -3,8 +3,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-IO_ROOT="${FLOORFLOW_IO:-$(cd "$REPO_ROOT/../floorflow-io" && pwd)}"
+PART4_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+IO_ROOT="${FLOORFLOW_IO:-$(cd "$PART4_ROOT/../floorflow-io" && pwd)}"
 GRAPH_DIR="$IO_ROOT/movement_graphs"
 OUT_DIR="$IO_ROOT/anomaly_reports"
 

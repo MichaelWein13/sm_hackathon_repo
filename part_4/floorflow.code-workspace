@@ -2,31 +2,31 @@
   "folders": [
     {
       "name": "Part 4 — Insight Engine",
-      "path": "part_4"
-    },
-    {
-      "name": "Part 4 — Repo root",
       "path": "."
     },
     {
+      "name": "Part 4 — Repo root",
+      "path": ".."
+    },
+    {
       "name": "Person 1 — Signals (main)",
-      "path": "../sm_hackathon-person1"
+      "path": "../../sm_hackathon-person1"
     },
     {
       "name": "Person 2 — Zone Discovery",
-      "path": "../sm_hackathon-person2"
+      "path": "../../sm_hackathon-person2"
     },
     {
       "name": "Person 3 — Movement Graph",
-      "path": "../sm_hackathon-person3"
+      "path": "../../sm_hackathon-person3"
     },
     {
       "name": "Person 5 — Visualization (shay)",
-      "path": "../sm_hackathon-person5"
+      "path": "../../sm_hackathon-person5"
     },
     {
       "name": "Shared I/O",
-      "path": "../floorflow-io"
+      "path": "../../floorflow-io"
     }
   ],
   "settings": {

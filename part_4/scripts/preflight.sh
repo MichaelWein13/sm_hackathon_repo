@@ -3,9 +3,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-PART4="$REPO_ROOT/part_4"
-IO_ROOT="${FLOORFLOW_IO:-$(cd "$REPO_ROOT/../floorflow-io" && pwd)}"
+PART4_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+IO_ROOT="${FLOORFLOW_IO:-$(cd "$PART4_ROOT/../floorflow-io" && pwd)}"
 GRAPH_DIR="$IO_ROOT/movement_graphs"
 OUT_DIR="$IO_ROOT/anomaly_reports"
 API_PORT="${FLOORFLOW_API_PORT:-8765}"
@@ -31,9 +30,9 @@ python3 -c 'import sys; assert sys.version_info >= (3, 10), sys.version' \
   && echo "  OK   Python >= 3.10 ($(python3 --version 2>&1))" \
   || { echo "  FAIL Python >= 3.10 required"; FAIL=1; }
 
-test -f "$PART4/insight_engine/engine.py" \
+test -f "$PART4_ROOT/insight_engine/engine.py" \
   && echo "  OK   insight engine present" \
-  || { echo "  FAIL missing $PART4/insight_engine/engine.py"; FAIL=1; }
+  || { echo "  FAIL missing $PART4_ROOT/insight_engine/engine.py"; FAIL=1; }
 
 echo ""
 echo "Shared I/O"

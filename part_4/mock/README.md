@@ -6,7 +6,7 @@ Simulates Person 3 by POSTing movement graph snapshots to the insight engine RES
 
 ## Quick demo (recommended)
 
-From `sm_hackathon_repo` root:
+From `part_4/`:
 
 ```bash
 ./scripts/run_demo.sh
@@ -23,7 +23,7 @@ Starts the engine, POSTs 12 snapshots, leaves the API running for Person 5.
 export NARRATION_BACKEND=disabled
 python3 insight_engine/engine.py \
   --serve --api-only \
-  --out-dir ../floorflow-io/anomaly_reports \
+  --out-dir ../../floorflow-io/anomaly_reports \
   --fresh
 ```
 
@@ -111,7 +111,7 @@ python3 mock/generate_mock_snapshots.py \
 
 ## Output
 
-Each POST still writes backup files to `--out-dir` (default `../floorflow-io/anomaly_reports/` in production):
+Each POST still writes backup files to `--out-dir` (default `../../floorflow-io/anomaly_reports/` when run from `part_4/`):
 
 | File | Contents |
 |---|---|

@@ -52,12 +52,12 @@ cs_hackathon/
 
 ## Open everything in Cursor / VS Code
 
-The workspace file lives **in the repo root**: `floorflow.code-workspace`
+The workspace file lives under Part 4: `part_4/floorflow.code-workspace`
 
 ```bash
-cd sm_hackathon_repo
+cd sm_hackathon_repo/part_4
 cursor floorflow.code-workspace
-# or: File → Open Workspace from File… → floorflow.code-workspace
+# or: File → Open Workspace from File… → part_4/floorflow.code-workspace
 ```
 
 All folders appear in the sidebar at once.
@@ -72,12 +72,13 @@ All folders appear in the sidebar at once.
 | 4 — Insight engine | SSE + `floorflow-io/anomaly_reports/` (file backup) | `POST /ingest/graph` |
 | 5 — Visualization | — | `GET http://localhost:8765/analytics/stream` (SSE) |
 
-**Start Person 4 (from repo root):**
+**Start Person 4 (from `part_4/`):**
 
 ```bash
+cd sm_hackathon_repo/part_4
 ./scripts/run_demo.sh --engine-only
 # or:
-cd part_4
+export NARRATION_BACKEND=disabled
 python3 insight_engine/engine.py \
   --serve --api-only \
   --out-dir ../../floorflow-io/anomaly_reports \
@@ -99,7 +100,7 @@ curl -X POST http://127.0.0.1:8765/ingest/graph \
 curl -sN http://127.0.0.1:8765/analytics/stream
 
 # React app: EventSource('/analytics/stream') with proxy in package.json
-# See part_4/README.md → "Person 5 — migration guide (SSE)"
+# See README.md → "Person 5 — migration guide (SSE)"
 ```
 
 See [`DEPLOYMENT.md`](DEPLOYMENT.md) for full run modes and troubleshooting.
@@ -138,4 +139,4 @@ git fetch origin
 git worktree add ../sm_hackathon-<name> origin/<branch-name>
 ```
 
-Then add the folder to `floorflow.code-workspace` in the repo root.
+Then add the folder to `part_4/floorflow.code-workspace`.
