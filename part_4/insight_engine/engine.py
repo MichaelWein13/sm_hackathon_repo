@@ -15,13 +15,14 @@ Usage:
 import argparse
 import json
 import logging
-import os
 import sys
+import threading
 import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from detection   import analyze_snapshot
-from alert_state import AlertStateManager, _alert_to_dict
+from alert_state import AlertStateManager, _alert_to_dict, _alert_to_person5_dict
 from narration   import generate_message
 
 logging.basicConfig(
@@ -39,6 +40,8 @@ logger = logging.getLogger(__name__)
 INPUT_GLOB       = "*.json"           # matches any JSON file in movement_graphs/
 OUTPUT_SNAPSHOT  = "insights_{ts}.json"
 OUTPUT_EVENTS    = "events.ndjson"
+OUTPUT_PERSON5   = "insights_api.json"  # Person 5: flat array, always latest
+PERSON5_API_PATH = "/analytics/insights"
 
 import re as _re
 _TS_FROM_FILENAME = _re.compile(r"graph_(\d+)\.json$")
@@ -106,7 +109,14 @@ def _write_snapshot(out_dir: Path, alerts: list, events: list, state: AlertState
 
     filename = out_dir / OUTPUT_SNAPSHOT.format(ts=snapshot_ts)
     _atomic_write(filename, json.dumps(payload, indent=2))
+    _write_person5_api(out_dir, alerts)
     logger.info(f"Wrote {filename.name} — {total} alerts ({critical} critical, {warning} warning)")
+
+
+def _write_person5_api(out_dir: Path, alerts: list):
+    """Person 5 contract: flat array of {zone_id, insight_type, message, confidence}."""
+    payload = [_alert_to_person5_dict(a) for a in alerts]
+    _atomic_write(out_dir / OUTPUT_PERSON5, json.dumps(payload, indent=2))
 
 
 def _append_events(out_dir: Path, events: list):
@@ -218,6 +228,46 @@ def run_watch(graph_dir: Path, out_dir: Path, interval: float):
         time.sleep(interval)
 
 
+def _make_person5_handler(out_dir: Path):
+    api_file = out_dir / OUTPUT_PERSON5
+
+    class Person5Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path.split("?", 1)[0] != PERSON5_API_PATH:
+                self.send_error(404)
+                return
+            try:
+                body = api_file.read_text(encoding="utf-8") if api_file.exists() else "[]"
+            except OSError:
+                self.send_error(500)
+                return
+            encoded = body.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(encoded)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(encoded)
+
+        def log_message(self, format, *args):
+            logger.debug("API %s", format % args)
+
+    return Person5Handler
+
+
+def start_person5_api(out_dir: Path, port: int) -> ThreadingHTTPServer:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    if not (out_dir / OUTPUT_PERSON5).exists():
+        _atomic_write(out_dir / OUTPUT_PERSON5, "[]")
+    server = ThreadingHTTPServer(("0.0.0.0", port), _make_person5_handler(out_dir))
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    logger.info(
+        f"Person 5 API listening on http://0.0.0.0:{port}{PERSON5_API_PATH}"
+    )
+    return server
+
+
 def run_once(graph_path: Path, out_dir: Path):
     """One-shot mode — process a single file and exit. Useful for testing."""
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -258,10 +308,22 @@ def main():
         "--once", metavar="FILE",
         help="Process a single graph file and exit (for testing)",
     )
+    parser.add_argument(
+        "--serve", action="store_true",
+        help=f"Expose Person 5 API at GET {PERSON5_API_PATH} (uses --api-port)",
+    )
+    parser.add_argument(
+        "--api-port", type=int, default=8765,
+        help="Port for Person 5 API when --serve is set (default: 8765)",
+    )
     args = parser.parse_args()
 
     graph_dir = Path(args.graph_dir)
     out_dir   = Path(args.out_dir)
+
+    api_server = None
+    if args.serve:
+        api_server = start_person5_api(out_dir, args.api_port)
 
     if args.once:
         run_once(Path(args.once), out_dir)
@@ -272,6 +334,9 @@ def main():
             run_watch(graph_dir, out_dir, args.interval)
         except KeyboardInterrupt:
             logger.info("Stopped.")
+        finally:
+            if api_server:
+                api_server.shutdown()
 
 
 if __name__ == "__main__":

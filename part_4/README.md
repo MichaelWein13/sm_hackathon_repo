@@ -77,12 +77,31 @@ python3 insight_engine/engine.py --graph-dir /shared/movement_graphs --out-dir /
 
 ### For Person 5 — my output is your input
 
-**Read from:** `anomaly_reports/`
+**Primary contract (matches `person4.out.yml`):**
+
+| Method | Path | Response |
+|---|---|---|
+| `GET` | `/analytics/insights` | Flat JSON array of `{ zone_id, insight_type, message, confidence }` |
+
+**Option A — HTTP (recommended):** run the engine with `--serve`:
+
+```bash
+python3 insight_engine/engine.py \
+  --graph-dir /shared/movement_graphs \
+  --out-dir /shared/anomaly_reports \
+  --serve --api-port 8765
+```
+
+Then fetch `http://localhost:8765/analytics/insights` (CORS enabled).
+
+**Option B — file poll:** read `anomaly_reports/insights_api.json` — same flat array, overwritten each cycle.
+
+**Extended contract (lifecycle + headline):**
 
 | File | Purpose |
 |---|---|
-| `insights_<timestamp_ms>.json` | **Dashboard state** — poll for the newest file each cycle |
-| `events.ndjson` | **Lifecycle feed** — tail/append-read for animations and transitions |
+| `insights_<timestamp_ms>.json` | Full dashboard state — `summary`, `alerts[]` with severity/lifecycle |
+| `events.ndjson` | Lifecycle feed — tail for escalations and resolutions |
 
 **Consumption model:**
 

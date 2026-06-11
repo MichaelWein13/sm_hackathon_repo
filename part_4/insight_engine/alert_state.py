@@ -395,3 +395,14 @@ def _alert_to_dict(alert: Alert) -> dict:
         "last_updated_ts": alert.last_updated_ts,
         "cycle_count":     alert.cycle_count,
     }
+
+
+def _alert_to_person5_dict(alert: Alert) -> dict:
+    """Person 5 ZoneInsight schema — GET /analytics/insights."""
+    d = _alert_to_dict(alert)
+    return {
+        "zone_id":      d["zone_id"],
+        "insight_type": d["insight_type"],
+        "message":      d["message"],
+        "confidence":   d["confidence"],
+    }
