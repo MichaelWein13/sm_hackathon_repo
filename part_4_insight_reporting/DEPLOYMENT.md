@@ -7,7 +7,7 @@ One-page reference for running the pipeline locally before the demo.
 ```
 cs_hackathon/
 ├── sm_hackathon_repo/          # Person 4 branch (part4_iape)
-│   └── part_4/                 # insight engine, scripts, docs
+│   └── part_4_insight_reporting/                 # insight engine, scripts, docs
 │       ├── insight_engine/
 │       ├── mock/
 │       └── scripts/
@@ -23,13 +23,13 @@ cs_hackathon/
 - Optional: `pip install -r requirements.txt` (only needed for LLM narration)
 
 ```bash
-cd sm_hackathon_repo/part_4
+cd sm_hackathon_repo/part_4_insight_reporting
 python3 --version
 ```
 
 ## Quick demo (mock data)
 
-From `part_4/` (Person 4 tree):
+From `part_4_insight_reporting/` (Person 4 tree):
 
 ```bash
 chmod +x scripts/*.sh   # first time only

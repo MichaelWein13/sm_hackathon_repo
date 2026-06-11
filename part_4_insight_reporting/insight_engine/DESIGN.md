@@ -210,7 +210,7 @@ Evaluate each on merit at integration time, not upfront.
 ## Usage
 
 ```bash
-# Demo (from part_4/)
+# Demo (from part_4_insight_reporting/)
 ./scripts/run_demo.sh
 
 # Production API server
