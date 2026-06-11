@@ -1,0 +1,477 @@
+{
+  "pipeline_status": "complete",
+  "total_anomalies_found": 43,
+  "alerts": [
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from zone_52 to zone_4",
+      "data": {
+        "from_zone_id": "zone_52",
+        "to_zone_id": "zone_4",
+        "transition_count": 3,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from zone_52 to zone_41",
+      "data": {
+        "from_zone_id": "zone_52",
+        "to_zone_id": "zone_41",
+        "transition_count": 4,
+        "transition_probability": 0.02
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from zone_52 to zone_5",
+      "data": {
+        "from_zone_id": "zone_52",
+        "to_zone_id": "zone_5",
+        "transition_count": 4,
+        "transition_probability": 0.02
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from zone_52 to zone_22",
+      "data": {
+        "from_zone_id": "zone_52",
+        "to_zone_id": "zone_22",
+        "transition_count": 3,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from transition to zone_33",
+      "data": {
+        "from_zone_id": "transition",
+        "to_zone_id": "zone_33",
+        "transition_count": 2,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from transition to zone_13",
+      "data": {
+        "from_zone_id": "transition",
+        "to_zone_id": "zone_13",
+        "transition_count": 4,
+        "transition_probability": 0.02
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from zone_52 to zone_13",
+      "data": {
+        "from_zone_id": "zone_52",
+        "to_zone_id": "zone_13",
+        "transition_count": 5,
+        "transition_probability": 0.02
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from zone_52 to zone_50",
+      "data": {
+        "from_zone_id": "zone_52",
+        "to_zone_id": "zone_50",
+        "transition_count": 2,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from zone_52 to zone_44",
+      "data": {
+        "from_zone_id": "zone_52",
+        "to_zone_id": "zone_44",
+        "transition_count": 3,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from zone_52 to zone_14",
+      "data": {
+        "from_zone_id": "zone_52",
+        "to_zone_id": "zone_14",
+        "transition_count": 3,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from zone_52 to zone_28",
+      "data": {
+        "from_zone_id": "zone_52",
+        "to_zone_id": "zone_28",
+        "transition_count": 4,
+        "transition_probability": 0.02
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from zone_52 to zone_36",
+      "data": {
+        "from_zone_id": "zone_52",
+        "to_zone_id": "zone_36",
+        "transition_count": 2,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from transition to zone_49",
+      "data": {
+        "from_zone_id": "transition",
+        "to_zone_id": "zone_49",
+        "transition_count": 3,
+        "transition_probability": 0.02
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from transition to zone_21",
+      "data": {
+        "from_zone_id": "transition",
+        "to_zone_id": "zone_21",
+        "transition_count": 2,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from zone_52 to zone_19",
+      "data": {
+        "from_zone_id": "zone_52",
+        "to_zone_id": "zone_19",
+        "transition_count": 3,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from zone_52 to zone_42",
+      "data": {
+        "from_zone_id": "zone_52",
+        "to_zone_id": "zone_42",
+        "transition_count": 5,
+        "transition_probability": 0.02
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from transition to zone_34",
+      "data": {
+        "from_zone_id": "transition",
+        "to_zone_id": "zone_34",
+        "transition_count": 2,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from transition to zone_8",
+      "data": {
+        "from_zone_id": "transition",
+        "to_zone_id": "zone_8",
+        "transition_count": 2,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from transition to zone_26",
+      "data": {
+        "from_zone_id": "transition",
+        "to_zone_id": "zone_26",
+        "transition_count": 2,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from transition to zone_48",
+      "data": {
+        "from_zone_id": "transition",
+        "to_zone_id": "zone_48",
+        "transition_count": 4,
+        "transition_probability": 0.02
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from zone_52 to zone_1",
+      "data": {
+        "from_zone_id": "zone_52",
+        "to_zone_id": "zone_1",
+        "transition_count": 3,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from zone_52 to zone_49",
+      "data": {
+        "from_zone_id": "zone_52",
+        "to_zone_id": "zone_49",
+        "transition_count": 4,
+        "transition_probability": 0.02
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from zone_52 to zone_35",
+      "data": {
+        "from_zone_id": "zone_52",
+        "to_zone_id": "zone_35",
+        "transition_count": 2,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from zone_52 to zone_3",
+      "data": {
+        "from_zone_id": "zone_52",
+        "to_zone_id": "zone_3",
+        "transition_count": 4,
+        "transition_probability": 0.02
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from zone_52 to zone_16",
+      "data": {
+        "from_zone_id": "zone_52",
+        "to_zone_id": "zone_16",
+        "transition_count": 2,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from transition to zone_24",
+      "data": {
+        "from_zone_id": "transition",
+        "to_zone_id": "zone_24",
+        "transition_count": 2,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from transition to zone_15",
+      "data": {
+        "from_zone_id": "transition",
+        "to_zone_id": "zone_15",
+        "transition_count": 4,
+        "transition_probability": 0.02
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from transition to zone_20",
+      "data": {
+        "from_zone_id": "transition",
+        "to_zone_id": "zone_20",
+        "transition_count": 3,
+        "transition_probability": 0.02
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from transition to zone_32",
+      "data": {
+        "from_zone_id": "transition",
+        "to_zone_id": "zone_32",
+        "transition_count": 2,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from transition to zone_42",
+      "data": {
+        "from_zone_id": "transition",
+        "to_zone_id": "zone_42",
+        "transition_count": 4,
+        "transition_probability": 0.02
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from transition to zone_19",
+      "data": {
+        "from_zone_id": "transition",
+        "to_zone_id": "zone_19",
+        "transition_count": 2,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from zone_52 to zone_32",
+      "data": {
+        "from_zone_id": "zone_52",
+        "to_zone_id": "zone_32",
+        "transition_count": 2,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from transition to zone_27",
+      "data": {
+        "from_zone_id": "transition",
+        "to_zone_id": "zone_27",
+        "transition_count": 4,
+        "transition_probability": 0.02
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from zone_52 to zone_47",
+      "data": {
+        "from_zone_id": "zone_52",
+        "to_zone_id": "zone_47",
+        "transition_count": 2,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from zone_52 to zone_38",
+      "data": {
+        "from_zone_id": "zone_52",
+        "to_zone_id": "zone_38",
+        "transition_count": 2,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from transition to zone_10",
+      "data": {
+        "from_zone_id": "transition",
+        "to_zone_id": "zone_10",
+        "transition_count": 2,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from zone_52 to zone_37",
+      "data": {
+        "from_zone_id": "zone_52",
+        "to_zone_id": "zone_37",
+        "transition_count": 3,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from zone_52 to zone_10",
+      "data": {
+        "from_zone_id": "zone_52",
+        "to_zone_id": "zone_10",
+        "transition_count": 2,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from zone_52 to zone_7",
+      "data": {
+        "from_zone_id": "zone_52",
+        "to_zone_id": "zone_7",
+        "transition_count": 3,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from zone_52 to zone_33",
+      "data": {
+        "from_zone_id": "zone_52",
+        "to_zone_id": "zone_33",
+        "transition_count": 5,
+        "transition_probability": 0.02
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from transition to zone_39",
+      "data": {
+        "from_zone_id": "transition",
+        "to_zone_id": "zone_39",
+        "transition_count": 3,
+        "transition_probability": 0.02
+      }
+    },
+    {
+      "type": "unusual_movement",
+      "severity": "medium",
+      "description": "Rare transition detected from transition to zone_9",
+      "data": {
+        "from_zone_id": "transition",
+        "to_zone_id": "zone_9",
+        "transition_count": 2,
+        "transition_probability": 0.01
+      }
+    },
+    {
+      "type": "severe_bottleneck",
+      "severity": "high",
+      "description": "Severe congestion forming in zone_52! High visits and dwell times.",
+      "data": {
+        "avg_dwell_ms": 839,
+        "visit_count": 241
+      }
+    }
+  ]
+}

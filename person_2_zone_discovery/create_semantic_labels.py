@@ -8,7 +8,7 @@ print("="*80)
 
 # Load optimal assignments
 print("\n[1/4] Loading zone assignments...")
-with open('outputs/assignments_optimal.json') as f:
+with open('../person_3_pipeline/assignments_optimal.json') as f:
     assignments = json.load(f)
 
 print(f"   Loaded {len(assignments)} assignments")
