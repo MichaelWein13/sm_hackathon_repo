@@ -22,7 +22,7 @@ IO_ROOT="${FLOORFLOW_IO:-$(cd "$REPO_ROOT/../floorflow-io" && pwd)}"
 GRAPH_DIR="$IO_ROOT/movement_graphs"
 OUT_DIR="$IO_ROOT/anomaly_reports"
 API_PORT="${FLOORFLOW_API_PORT:-8765}"
-DEMO_STEPS="${DEMO_STEPS:-12}"
+DEMO_STEPS="${DEMO_STEPS:-30}"
 DEMO_INTERVAL="${DEMO_INTERVAL:-3}"
 
 NO_RESET=false
