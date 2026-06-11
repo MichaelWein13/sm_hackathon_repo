@@ -1,4 +1,5 @@
 import json
+import os
 from collections import defaultdict
 from fastapi import FastAPI, BackgroundTasks
 import uvicorn
@@ -133,7 +134,7 @@ class MovementGraphBuilder:
 app = FastAPI()
 builder = MovementGraphBuilder()
 
-# 🌟 NEW: A global variable to hold the latest graph in memory!
+# Global memory variable
 LATEST_GRAPH_DATA = {}
 
 # --- CONFIGURATION ---
@@ -153,40 +154,61 @@ def send_to_node(target_url: str, target_name: str, graph_data: dict):
         print(f"⚠️ ERROR: Could not connect to {target_name}. Is their server running?")
 
 
-# --- ENDPOINT 1: PERSON 2 PUSHES DATA HERE ---
+# --- ENDPOINT 1: THE REAL PIPELINE (Person 2 Pushes Data Here) ---
 @app.post("/receive_assignments")
 def receive_from_person_2(person_2_output: list, background_tasks: BackgroundTasks):
-    global LATEST_GRAPH_DATA # Tell Python we are modifying the global memory
-    print(f"\n--- Incoming data! Received {len(person_2_output)} observations from Person 2. ---")
+    global LATEST_GRAPH_DATA
+    print(f"\n--- Incoming LIVE data! Received {len(person_2_output)} observations from Person 2. ---")
 
-    # 1. Build the graph immediately
     final_graph = builder.build_graph(person_2_output)
-
-    # 🌟 NEW: Save it to our global memory so Person 5 can request it later
     LATEST_GRAPH_DATA = final_graph
 
-    # Optional: Keep a local backup of the latest run
     with open('final_movement_graph.json', 'w') as out_file:
         json.dump(final_graph, out_file, indent=2)
 
-    # 2. Tell FastAPI to send the data to teammate 3 in the background
     background_tasks.add_task(send_to_node, PERSON_4_URL, "Person 4", final_graph)
+    background_tasks.add_task(send_to_node, PERSON_5_URL, "Person 5", final_graph)
 
-    # 3. Instantly reply to Person 2
     return {"status": "Success! Graph built and forwarded to Persons 4 and 5."}
 
 
-# --- 🌟 NEW ENDPOINT 2: PERSON 5 CAN PULL DATA FROM HERE ---
+# --- 🌟 NEW ENDPOINT: THE LOCAL SIMULATOR (Read from File) ---
+@app.get("/simulate_person_2")
+def simulate_local_data_load(background_tasks: BackgroundTasks):
+    """Reads assignments.json from the folder and pretends Person 2 just sent it."""
+    global LATEST_GRAPH_DATA
+
+    # Make sure the file actually exists first
+    if not os.path.exists("assignments.json"):
+        return {"error": "Could not find 'assignments.json' in your folder. Make sure you pasted it in!"}
+
+    # Open and read the file
+    with open("assignments.json", "r") as f:
+        person_2_output = json.load(f)
+
+    print(f"\n--- 🤖 SIMULATOR TRIGGERED! Loaded {len(person_2_output)} observations locally. ---")
+
+    # Run your exact same pipeline logic
+    final_graph = builder.build_graph(person_2_output)
+    LATEST_GRAPH_DATA = final_graph
+
+    with open('final_movement_graph.json', 'w') as out_file:
+        json.dump(final_graph, out_file, indent=2)
+
+    background_tasks.add_task(send_to_node, PERSON_4_URL, "Person 4", final_graph)
+    background_tasks.add_task(send_to_node, PERSON_5_URL, "Person 5", final_graph)
+
+    return {"status": "Local Simulation Complete", "message": f"Successfully loaded {len(person_2_output)} records from assignments.json and forwarded to the team."}
+
+
+# --- ENDPOINT 3: PERSON 5 PULLS DATA FROM HERE ---
 @app.get("/graph")
 def send_to_person_5():
-    """Person 5 calls this GET endpoint whenever they want the newest map data."""
     print("Person 5 just requested the latest graph data!")
 
-    # Check if Person 2 has actually sent us anything yet
     if not LATEST_GRAPH_DATA:
         return {"status": "Waiting on data", "message": "The graph has not been built yet. Please wait for Person 2."}
 
-    # If we have data, hand it right over to Person 5
     return LATEST_GRAPH_DATA
 
 
