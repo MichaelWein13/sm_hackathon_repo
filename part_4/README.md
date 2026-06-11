@@ -2,7 +2,7 @@
 
 Real-time situational awareness for emergency response. Watches movement graph snapshots from Person 3, detects developing congestion and anomalies, maintains live alert state, and writes insights for Person 5 to display.
 
-**Spec:** [`FINAL_VISION.md`](FINAL_VISION.md) · **Architecture:** [`insight_engine/DESIGN.md`](insight_engine/DESIGN.md)
+**Spec:** [`FINAL_VISION.md`](FINAL_VISION.md) · **Architecture:** [`insight_engine/DESIGN.md`](insight_engine/DESIGN.md) · **Analysis math:** [`insight_engine/ANALYSIS.md`](insight_engine/ANALYSIS.md)
 
 ---
 

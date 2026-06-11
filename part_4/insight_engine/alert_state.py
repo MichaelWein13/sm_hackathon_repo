@@ -36,6 +36,9 @@ SEVERITY_THRESHOLDS = {
 CYCLES_TO_ESCALATE   = 2  # must stay above threshold for this many cycles
 CYCLES_TO_DEESCALATE = 3  # must stay below threshold for this many cycles
 
+# Suppress structural alerts while edge history seeds (cycles 1..N)
+STRUCTURAL_WARMUP_CYCLES = 2
+
 
 def urgency_to_target_severity(urgency: float) -> str:
     if urgency >= SEVERITY_THRESHOLDS["critical"]:
@@ -118,26 +121,29 @@ class AlertStateManager:
                 alert_id = f"{zone_id}__{itype}"
                 active_this_cycle[alert_id] = urgency
 
-        # Structural alerts: unexpected transitions
-        for edge in structural.get("unexpected_transitions", []):
-            zone_id  = edge["to_zone_id"]
-            alert_id = f"{zone_id}__unexpected_transition"
-            conf     = _clamp(1.0 - edge["transition_probability"] * 15)
-            active_this_cycle[alert_id] = conf
+        # Structural / cross-zone pattern alerts — after warm-up only.
+        # Cycles 1..N seed edge history without flooding the commander on startup.
+        if self.cycle > STRUCTURAL_WARMUP_CYCLES:
+            # Structural alerts: unexpected transitions
+            for edge in structural.get("unexpected_transitions", []):
+                zone_id  = edge["to_zone_id"]
+                alert_id = f"{zone_id}__unexpected_transition"
+                conf     = _clamp(1.0 - edge["transition_probability"] * 15)
+                active_this_cycle[alert_id] = conf
 
-        # Structural alerts: new edges
-        for edge in structural.get("new_edges", []):
-            zone_id  = edge["to_zone_id"]
-            alert_id = f"{zone_id}__anomaly"
-            active_this_cycle.setdefault(alert_id, 0.65)
+            # Structural alerts: new edges
+            for edge in structural.get("new_edges", []):
+                zone_id  = edge["to_zone_id"]
+                alert_id = f"{zone_id}__anomaly"
+                active_this_cycle.setdefault(alert_id, 0.65)
 
-        # Structural alerts: isolated zones
-        for iz in structural.get("isolated_zones", []):
-            alert_id = f"{iz['zone_id']}__anomaly"
-            urgency  = _clamp(iz["presence_ratio"])
-            active_this_cycle[alert_id] = max(
-                active_this_cycle.get(alert_id, 0.0), urgency
-            )
+            # Structural alerts: isolated zones
+            for iz in structural.get("isolated_zones", []):
+                alert_id = f"{iz['zone_id']}__anomaly"
+                urgency  = _clamp(iz["presence_ratio"])
+                active_this_cycle[alert_id] = max(
+                    active_this_cycle.get(alert_id, 0.0), urgency
+                )
 
         # Cascade alerts — attach to the downstream zone
         for cas in cascades:

@@ -2,6 +2,8 @@
 
 **Authoritative spec:** [`FINAL_VISION.md`](../FINAL_VISION.md) — this document describes how the code implements it. If they disagree, FINAL_VISION wins.
 
+**Math & low-level implementation:** [`ANALYSIS.md`](ANALYSIS.md) — formulas, time bases, state, tunables.
+
 ---
 
 ## Purpose
