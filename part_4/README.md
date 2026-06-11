@@ -100,11 +100,16 @@ python3 insight_engine/engine.py --serve --api-only --out-dir /shared/anomaly_re
 | Method | Path | Response |
 |---|---|---|
 | `GET` | `/analytics/insights` | Flat JSON array of `{ zone_id, insight_type, message, confidence }` |
+| `GET` | `/analytics/alerts` | Full alerts with `id`, `severity`, lifecycle timestamps + `headline` |
+| `GET` | `/analytics/summary` | Global `situation_summary` + `headline` |
+| `POST` | `/ingest/graph` | Also returns `headline`, `summary`, and full `alerts` |
 
 **HTTP:** with the engine running (`--serve --api-only`):
 
 ```bash
 curl http://localhost:8765/analytics/insights
+curl http://localhost:8765/analytics/alerts
+curl http://localhost:8765/analytics/summary
 curl http://localhost:8765/health
 ```
 

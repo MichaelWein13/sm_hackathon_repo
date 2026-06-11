@@ -397,5 +397,6 @@ def analyze_snapshot(
         "cascades":               cascades,
         "convergence":            convergence,
         "zone_stats":             zone_stats,
+        "nodes":                  sorted(nodes),
         "snapshot_ts":            snapshot.get("snapshot_ts", 0),
     }

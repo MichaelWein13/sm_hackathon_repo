@@ -26,7 +26,9 @@ Person 3 (Movement Graph)
    alert_state.py  — lifecycle, hysteresis, memory
    narration.py    — message generation (LLM + templates)
         │
-        │  GET /analytics/insights  → Person 5
+        │  GET /analytics/insights  → Person 5 (flat)
+        │  GET /analytics/alerts    → Person 5 (lifecycle UI)
+        │  GET /analytics/summary   → Person 5 (headline)
         │  anomaly_reports/  (optional file backup)
         ▼
 Person 5 (Visualization)
@@ -38,7 +40,7 @@ Person 5 (Visualization)
 
 | Module | Role |
 |---|---|
-| `engine.py` | REST API (`POST /ingest/graph`, `GET /analytics/insights`), optional file watch, writes outputs |
+| `engine.py` | REST API (`POST /ingest/graph`, `GET /analytics/*`), optional file watch, writes outputs |
 | `detection.py` | Pure functions: accumulation, intra-trend, EWMA drift, structural change, cascade, convergence → per-zone urgency |
 | `alert_state.py` | Alert lifecycle (`detecting → warning → critical → resolving → resolved`), hysteresis, pattern memory |
 | `narration.py` | Turns signals into incident-commander messages; LLM primary, templates fallback |

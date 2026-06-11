@@ -90,7 +90,9 @@ curl -X POST http://127.0.0.1:8765/ingest/graph \
 |---|---|---|
 | `/ingest/graph` | `POST` | Person 3 submits movement graph JSON |
 | `/analytics/insights` | `GET` | Person 5 reads flat insights array |
-| `/health` | `GET` | Liveness check |
+| `/analytics/alerts` | `GET` | Full alerts with severity, lifecycle, headline |
+| `/analytics/summary` | `GET` | Global situation summary + headline |
+| `/health` | `GET` | Liveness check — lists all routes |
 
 Required JSON shape: `nodes`, `edges`, `zone_stats`, `time_windows` (see `part_4/README.md`).
 
@@ -98,10 +100,12 @@ Required JSON shape: `nodes`, `edges`, `zone_stats`, `time_windows` (see `part_4
 
 ```bash
 curl http://127.0.0.1:8765/analytics/insights
+curl http://127.0.0.1:8765/analytics/alerts
+curl http://127.0.0.1:8765/analytics/summary
 curl http://127.0.0.1:8765/health
 ```
 
-Point Person 5's frontend at `http://localhost:8765/analytics/insights`.
+Point Person 5's frontend at `http://localhost:8765/analytics/insights` (flat contract), or `/analytics/alerts` for lifecycle UI.
 
 **Optional file backup** (written each cycle to `anomaly_reports/`):
 

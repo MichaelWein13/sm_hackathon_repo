@@ -47,8 +47,13 @@ OUTPUT_SNAPSHOT  = "insights_{ts}.json"
 OUTPUT_EVENTS    = "events.ndjson"
 OUTPUT_PERSON5   = "insights_api.json"  # Person 5: flat array, always latest
 INGEST_API_PATH  = "/ingest/graph"      # Person 3: POST movement graph snapshot
-PERSON5_API_PATH = "/analytics/insights"
+PERSON5_API_PATH = "/analytics/insights"  # Person 5: flat ZoneInsight array (legacy)
+ALERTS_API_PATH  = "/analytics/alerts"    # Person 5: full alerts + severity/lifecycle
+SUMMARY_API_PATH = "/analytics/summary"   # Person 5: global headline
 HEALTH_API_PATH  = "/health"
+
+# Person 2 HDBSCAN noise label — not a real sector
+_NOISE_ZONE_IDS  = frozenset({"transition"})
 
 import re as _re
 _TS_FROM_FILENAME = _re.compile(r"graph_(\d+)\.json$")
@@ -89,6 +94,41 @@ def _snapshot_ts(snapshot: dict, fallback: int | None = None) -> int:
     return fallback if fallback is not None else int(time.time() * 1000)
 
 
+def _sanitize_graph(snapshot: dict) -> dict:
+    """Drop HDBSCAN noise zones so they do not flood alerts on real building data."""
+    nodes = [n for n in snapshot.get("nodes", []) if n not in _NOISE_ZONE_IDS]
+    edges = [
+        e for e in snapshot.get("edges", [])
+        if e.get("from_zone_id") not in _NOISE_ZONE_IDS
+        and e.get("to_zone_id") not in _NOISE_ZONE_IDS
+    ]
+    zone_stats = {
+        k: v for k, v in snapshot.get("zone_stats", {}).items()
+        if k not in _NOISE_ZONE_IDS
+    }
+    time_windows = []
+    for window in snapshot.get("time_windows", []):
+        wg = window.get("window_graph", {})
+        time_windows.append({
+            **window,
+            "window_graph": {
+                "nodes": [n for n in wg.get("nodes", []) if n not in _NOISE_ZONE_IDS],
+                "edges": [
+                    e for e in wg.get("edges", [])
+                    if e.get("from_zone_id") not in _NOISE_ZONE_IDS
+                    and e.get("to_zone_id") not in _NOISE_ZONE_IDS
+                ],
+            },
+        })
+    return {
+        **snapshot,
+        "nodes":        nodes,
+        "edges":        edges,
+        "zone_stats":   zone_stats,
+        "time_windows": time_windows,
+    }
+
+
 def _validate_graph(snapshot: dict) -> str | None:
     """Returns an error message if the payload is not a usable graph snapshot."""
     if not isinstance(snapshot, dict):
@@ -107,10 +147,15 @@ def _validate_graph(snapshot: dict) -> str | None:
 # Output writers
 # ---------------------------------------------------------------------------
 
-def _write_snapshot(out_dir: Path, alerts: list, events: list, state: AlertStateManager, snapshot_ts: int):
+def _sector_label(zone_id: str) -> str:
+    return zone_id.replace("zone_", "Sector ") if zone_id.startswith("zone_") else zone_id
+
+
+def _build_summary(state: AlertStateManager, alerts: list, snapshot_ts: int) -> dict:
     critical = sum(1 for a in alerts if a.severity == "critical")
     warning  = sum(1 for a in alerts if a.severity == "warning")
     total    = len(alerts)
+    sectors  = sorted({a.zone_id for a in alerts})
 
     if critical:
         summary_sev = "critical"
@@ -121,24 +166,38 @@ def _write_snapshot(out_dir: Path, alerts: list, events: list, state: AlertState
     else:
         summary_sev = "info"
 
+    elapsed = state.elapsed_seconds()
     if total:
-        worst = max(alerts, key=lambda a: a.confidence)
+        worst = max(
+            alerts,
+            key=lambda a: (
+                {"critical": 3, "warning": 2, "detecting": 1, "resolving": 0}.get(a.severity, 0),
+                a.confidence,
+            ),
+        )
+        worst_label = _sector_label(worst.zone_id)
+        if critical:
+            situation = f"One critical situation developing in {worst_label}"
+        elif warning:
+            situation = f"One developing situation in {worst_label}"
+        else:
+            situation = f"Patterns emerging in {worst_label}"
         summary_msg = (
-            f"{total} active alert{'s' if total != 1 else ''} across the monitored area. "
-            f"{'One critical situation' if critical else 'One developing situation'} "
-            f"in {worst.zone_id.replace('zone_', 'Sector ')}. "
-            f"System running for {state.elapsed_seconds()}s across {state.cycle} snapshots."
+            f"{total} active alert{'s' if total != 1 else ''} across "
+            f"{len(sectors)} observed sector{'s' if len(sectors) != 1 else ''}. "
+            f"{situation}. "
+            f"System has been running for {elapsed}s across {state.cycle} snapshots."
         )
     else:
         summary_msg = (
             f"No active alerts. System nominal. "
-            f"Running for {state.elapsed_seconds()}s across {state.cycle} snapshots."
+            f"Running for {elapsed}s across {state.cycle} snapshots."
         )
 
-    payload = {
+    return {
         "snapshot_ts":     snapshot_ts,
         "cycle":           state.cycle,
-        "elapsed_seconds": state.elapsed_seconds(),
+        "elapsed_seconds": elapsed,
         "summary": {
             "zone_id":      "global",
             "insight_type": "situation_summary",
@@ -149,10 +208,42 @@ def _write_snapshot(out_dir: Path, alerts: list, events: list, state: AlertState
         "alerts": [_alert_to_dict(a) for a in alerts],
     }
 
+
+def _build_headline(alerts: list) -> str | None:
+    if not alerts:
+        return None
+    worst = max(
+        alerts,
+        key=lambda a: (
+            {"critical": 3, "warning": 2, "detecting": 1, "resolving": 0}.get(a.severity, 0),
+            a.confidence,
+        ),
+    )
+    sev = worst.severity.upper()
+    if worst.severity == "critical":
+        sev = "CRITICAL"
+    elif worst.severity == "warning":
+        sev = "WARNING"
+    elif worst.severity == "detecting":
+        sev = "DETECTING"
+    else:
+        sev = worst.severity.upper()
+    label = _sector_label(worst.zone_id)
+    type_phrase = worst.insight_type.replace("_", " ")
+    return f"{sev} — {label} {type_phrase}"
+
+
+def _write_snapshot(out_dir: Path, alerts: list, events: list, state: AlertStateManager, snapshot_ts: int) -> dict:
+    payload = _build_summary(state, alerts, snapshot_ts)
+    critical = sum(1 for a in alerts if a.severity == "critical")
+    warning  = sum(1 for a in alerts if a.severity == "warning")
+    total    = len(alerts)
+
     filename = out_dir / OUTPUT_SNAPSHOT.format(ts=snapshot_ts)
     _atomic_write(filename, json.dumps(payload, indent=2))
     _write_person5_api(out_dir, alerts)
     logger.info(f"Wrote {filename.name} — {total} alerts ({critical} critical, {warning} warning)")
+    return payload
 
 
 def _write_person5_api(out_dir: Path, alerts: list):
@@ -232,8 +323,17 @@ class EngineRuntime:
             logger.info("--fresh: cleared events.ndjson for a clean run")
         if not (self.out_dir / OUTPUT_PERSON5).exists():
             _atomic_write(self.out_dir / OUTPUT_PERSON5, "[]")
+        self.latest_dashboard: dict = {
+            "snapshot_ts":     0,
+            "cycle":           0,
+            "elapsed_seconds": 0,
+            "summary":         None,
+            "alerts":          [],
+            "headline":        None,
+        }
 
     def ingest(self, snapshot: dict, snapshot_ts: int | None = None) -> dict:
+        snapshot = _sanitize_graph(snapshot)
         err = _validate_graph(snapshot)
         if err:
             raise ValueError(err)
@@ -241,14 +341,19 @@ class EngineRuntime:
         with self.lock:
             ts = snapshot_ts if snapshot_ts is not None else _snapshot_ts(snapshot)
             logger.info(f"Ingesting graph snapshot ts={ts}")
-            active_alerts = process_snapshot(
+            active_alerts, dashboard = process_snapshot(
                 snapshot, self.state_manager, self.engine_state, self.out_dir, ts
             )
+            headline = _build_headline(active_alerts)
+            self.latest_dashboard = {**dashboard, "headline": headline}
             return {
                 "ok":           True,
                 "snapshot_ts":  ts,
                 "cycle":        self.state_manager.cycle,
                 "alert_count":  len(active_alerts),
+                "headline":     headline,
+                "summary":      dashboard["summary"],
+                "alerts":       dashboard["alerts"],
                 "insights":     [_alert_to_person5_dict(a) for a in active_alerts],
             }
 
@@ -263,7 +368,7 @@ def process_snapshot(
     engine_state: dict,
     out_dir: Path,
     snapshot_ts: int,
-) -> list:
+) -> tuple[list, dict]:
     signals = analyze_snapshot(
         snapshot=snapshot,
         ewma_state=engine_state["ewma"],
@@ -271,6 +376,7 @@ def process_snapshot(
         zone_history=engine_state["zone_history"],
         total_prior_snapshots=engine_state["total_snapshots"],
     )
+    signals["snapshot_ts"] = snapshot_ts
     engine_state["total_snapshots"] += 1
 
     events, active_alerts = state_manager.update(
@@ -279,7 +385,7 @@ def process_snapshot(
         snapshot_ts=snapshot_ts,
     )
 
-    _write_snapshot(out_dir, active_alerts, events, state_manager, snapshot_ts)
+    dashboard = _write_snapshot(out_dir, active_alerts, events, state_manager, snapshot_ts)
     _append_events(out_dir, events)
 
     for ev in events:
@@ -287,7 +393,7 @@ def process_snapshot(
         logger.info(
             f"  [{ev['event'].upper():12}] {ev['alert_id']}  severity={sev}"
         )
-    return active_alerts
+    return active_alerts, dashboard
 
 
 def run_watch(runtime: EngineRuntime, graph_dir: Path, interval: float):
@@ -343,9 +449,31 @@ def _make_api_handler(runtime: EngineRuntime):
             route = self._route()
             if route == HEALTH_API_PATH:
                 _send_json(self, 200, {
-                    "status": "ok",
-                    "ingest": INGEST_API_PATH,
+                    "status":   "ok",
+                    "ingest":   INGEST_API_PATH,
                     "insights": PERSON5_API_PATH,
+                    "alerts":   ALERTS_API_PATH,
+                    "summary":  SUMMARY_API_PATH,
+                })
+                return
+            if route == ALERTS_API_PATH:
+                dash = runtime.latest_dashboard
+                _send_json(self, 200, {
+                    "snapshot_ts":     dash["snapshot_ts"],
+                    "cycle":           dash["cycle"],
+                    "elapsed_seconds": dash["elapsed_seconds"],
+                    "headline":        dash.get("headline"),
+                    "alerts":          dash["alerts"],
+                })
+                return
+            if route == SUMMARY_API_PATH:
+                dash = runtime.latest_dashboard
+                _send_json(self, 200, {
+                    "snapshot_ts":     dash["snapshot_ts"],
+                    "cycle":           dash["cycle"],
+                    "elapsed_seconds": dash["elapsed_seconds"],
+                    "headline":        dash.get("headline"),
+                    "summary":         dash["summary"],
                 })
                 return
             if route == PERSON5_API_PATH:
@@ -403,7 +531,8 @@ def start_api_server(
         raise
     logger.info(
         f"API http://0.0.0.0:{port}"
-        f"  POST {INGEST_API_PATH}  GET {PERSON5_API_PATH}  GET {HEALTH_API_PATH}"
+        f"  POST {INGEST_API_PATH}"
+        f"  GET {PERSON5_API_PATH} {ALERTS_API_PATH} {SUMMARY_API_PATH} {HEALTH_API_PATH}"
     )
     if blocking:
         try:
@@ -421,7 +550,7 @@ def start_api_server(
 def run_once(graph_path: Path, out_dir: Path):
     """One-shot mode — process a single file and exit. Useful for testing."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    snapshot    = json.loads(graph_path.read_text(encoding="utf-8"))
+    snapshot    = _sanitize_graph(json.loads(graph_path.read_text(encoding="utf-8")))
     snapshot_ts = int(time.time() * 1000)
     state_manager = AlertStateManager()
     engine_state  = {
@@ -430,7 +559,7 @@ def run_once(graph_path: Path, out_dir: Path):
         "zone_history":    {},
         "total_snapshots": 0,
     }
-    process_snapshot(snapshot, state_manager, engine_state, out_dir, snapshot_ts)
+    _, _ = process_snapshot(snapshot, state_manager, engine_state, out_dir, snapshot_ts)
     logger.info("Done.")
 
 

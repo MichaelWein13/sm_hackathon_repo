@@ -152,14 +152,52 @@ def _flow_description(inbound: int, outbound: int) -> str:
     return f"{inbound} inbound and {outbound} outbound movements"
 
 
-def _growth_phrase(growth: float | None) -> str | None:
+def _capacity_pct(acc_ratio: float) -> int:
+    """Rough capacity estimate from inbound/outbound accumulation ratio."""
+    if acc_ratio <= 0:
+        return 0
+    return min(95, max(5, int(acc_ratio / 5.0 * 100)))
+
+
+def _growth_phrase(growth: float | None, elapsed_s: int | None = None) -> str | None:
     if growth is None or growth <= 1.05:
         return None
+    suffix = f" in the last {elapsed_s} seconds" if elapsed_s and elapsed_s >= 30 else ""
     if growth >= 3.0:
-        return "more than tripled"
+        return f"more than tripled{suffix}"
     if growth >= 2.0:
-        return "doubled"
-    return f"grown {growth:.1f}×"
+        return f"doubled{suffix}"
+    return f"grown {growth:.1f}×{suffix}"
+
+
+def _source_labels(sources: list[str]) -> str:
+    labels = [_zone_label(s) for s in sources[:3]]
+    if len(sources) > 3:
+        return ", ".join(labels) + f" and {len(sources) - 3} others"
+    if len(labels) == 2:
+        return f"{labels[0]} and {labels[1]}"
+    if len(labels) == 1:
+        return labels[0]
+    return ", ".join(labels)
+
+
+def _divert_recommendation(zone_id: str, sources: list[str], nodes: list) -> str:
+    label = _zone_label(zone_id)
+    source_set = set(sources)
+    alternates = [n for n in nodes if n != zone_id and n not in source_set]
+    if alternates and sources:
+        return (
+            f"{_source_labels(sources)} feeding into {label}. "
+            f"Recommend diverting flow through {_zone_label(alternates[0])}."
+        )
+    if alternates:
+        return f"Recommend diverting flow through {_zone_label(alternates[0])}."
+    if sources:
+        return (
+            f"{_source_labels(sources)} converging on {label}. "
+            f"Consider opening an alternative route."
+        )
+    return "Consider opening an alternative route."
 
 
 # ---------------------------------------------------------------------------
@@ -183,7 +221,8 @@ def _template_message(
     elapsed_s  = context.get("elapsed_seconds")
     time_ctx   = _time_phrase(windows, cycle_count, elapsed_s)
     flow       = _flow_description(inbound, outbound)
-    growth_txt = _growth_phrase(growth)
+    growth_txt = _growth_phrase(growth, elapsed_s)
+    capacity_pct = _capacity_pct(context.get("accumulation_ratio", 0))
 
     if insight_type == "congestion_forecast":
         if severity == "resolving":
@@ -203,11 +242,11 @@ def _template_message(
                 f"Immediate intervention required."
             )
         if severity == "warning":
-            lead = (
-                f"{label} traffic has {growth_txt} {time_ctx} and continues to rise."
-                if growth_txt
-                else f"{label} is developing a sustained traffic increase {time_ctx}."
-            )
+            cap_note = f"{label} is at {capacity_pct}% of estimated capacity"
+            if growth_txt:
+                lead = f"{cap_note} — traffic has {growth_txt} and continues to rise."
+            else:
+                lead = f"{cap_note} with a sustained traffic increase {time_ctx}."
             return f"{lead} {flow}. Recommend diverting flow before this sector reaches capacity."
         if growth_txt:
             return (
@@ -227,11 +266,12 @@ def _template_message(
             )
         if severity in ("warning", "critical"):
             stay = f" Average stay is {dwell_s} seconds." if dwell_s else ""
-            action = (
-                "Immediate intervention required — sector may become impassable."
-                if severity == "critical"
-                else "Consider opening an alternative route."
-            )
+            sources = context.get("convergence_sources", [])
+            nodes = context.get("nodes", [])
+            if severity == "critical":
+                action = "Immediate intervention required — sector may become impassable."
+            else:
+                action = _divert_recommendation(zone_id, sources, nodes)
             return (
                 f"{label} is a convergence point {time_ctx} — multiple approach paths "
                 f"feeding into one sector.{stay} {flow}. {action}"
@@ -263,7 +303,7 @@ def _template_message(
     if insight_type == "unexpected_transition":
         from_label = _zone_label(context.get("from_zone", "unknown"))
         count      = context.get("transition_count", 0)
-        seen_for   = f"first seen {elapsed_s} seconds ago, " if elapsed_s else ""
+        seen_for   = f"first detected {elapsed_s} seconds ago — " if elapsed_s else ""
         uses       = f"used {count} time{'s' if count != 1 else ''}"
         return (
             f"New route detected: {from_label} → {label}. "
@@ -362,6 +402,16 @@ def _build_context(
         if iz["zone_id"] == zone_id:
             ctx["presence_ratio"] = iz["presence_ratio"]
             break
+
+    for conv in signals.get("convergence", []):
+        if conv.get("zone_id") == zone_id:
+            ctx["convergence_sources"] = conv.get("sources", [])
+            ctx["convergence_source_count"] = conv.get(
+                "source_count", len(conv.get("sources", []))
+            )
+            break
+
+    ctx["nodes"] = signals.get("nodes", [])
 
     return ctx
 
