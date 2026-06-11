@@ -53,13 +53,22 @@ fuser -k 8765/tcp
 
 ## What the mock scenario shows
 
-| Story | Alert | Arc |
-|---|---|---|
-| **A — Congestion** | `zone_3__congestion_forecast` | detecting → warning → critical → resolving → resolved |
-| **B — New route** | `zone_1__unexpected_transition` | Overlaps with Story A from step 3 (Sector 4 → Sector 1) |
-| Background | `zone_2__high_dwell_zone` | Persistent medical-staging area (high dwell) |
+**Multi-sector chaos** — overlapping crises in different zones (~30 steps × 3 s ≈ 90 s):
 
-Default run: **12 snapshots**, one every **3 seconds** (~36 s total).
+| When | Sector | What fires |
+|------|--------|------------|
+| Steps 2–6 | zone_2 | `high_dwell_zone` — medical staging fills up |
+| Steps 4–6 | zone_1 | `unexpected_transition` — rare route from zone_4 |
+| Steps 8–14 | zone_3 | `congestion_forecast` + `bottleneck_risk` — food-hall surge (short) |
+| Steps 7–13 | zone_2 | `bottleneck_risk` — staging backup while zone_3 is also hot |
+| Steps 14–20 | zone_4 | convergence crisis — lobby + kitchen feed practice room |
+| Steps 16–23 | zone_5 | aquarium opens; crowding + rare return route to zone_1 |
+| Steps 25–26 | zone_4 | sector briefly offline → isolation `anomaly` |
+| Steps 27–29 | all | staggered resolutions |
+
+Alert types mix across the run: `high_dwell_zone`, `unexpected_transition`, `congestion_forecast`, `bottleneck_risk`, and structural `anomaly` — not one long zone_3 meltdown.
+
+Default run: **30 snapshots**, one every **3 seconds** (~90 s total).
 
 ---
 
@@ -69,13 +78,13 @@ Default run: **12 snapshots**, one every **3 seconds** (~36 s total).
 # REST (integration / demo)
 python3 mock/generate_mock_snapshots.py \
   --api-url http://127.0.0.1:8765/ingest/graph \
-  --steps 12 --interval 3
+  --steps 30 --interval 3
 
 # Legacy files (local debugging only)
 python3 mock/generate_mock_snapshots.py --out-dir mock/movement_graphs
 ```
 
-Traffic tables loop after 12 steps for long runs.
+Traffic tables loop after 30 steps for long soak runs.
 
 ---
 

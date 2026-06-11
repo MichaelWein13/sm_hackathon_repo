@@ -26,9 +26,10 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from detection   import analyze_snapshot
-from alert_state import AlertStateManager, _alert_to_dict, _alert_to_person5_dict
-from narration   import generate_message
+from detection         import analyze_snapshot
+from alert_state       import AlertStateManager, _alert_to_dict, _alert_to_person5_dict
+from narration         import generate_message
+from decision_support  import enrich_alert, build_summary_decisions
 
 logging.basicConfig(
     level=logging.INFO,
@@ -151,7 +152,12 @@ def _sector_label(zone_id: str) -> str:
     return zone_id.replace("zone_", "Sector ") if zone_id.startswith("zone_") else zone_id
 
 
-def _build_summary(state: AlertStateManager, alerts: list, snapshot_ts: int) -> dict:
+def _build_summary(
+    state: AlertStateManager,
+    alerts: list,
+    snapshot_ts: int,
+    signals: dict | None = None,
+) -> dict:
     critical = sum(1 for a in alerts if a.severity == "critical")
     warning  = sum(1 for a in alerts if a.severity == "warning")
     total    = len(alerts)
@@ -194,18 +200,27 @@ def _build_summary(state: AlertStateManager, alerts: list, snapshot_ts: int) -> 
             f"Running for {elapsed}s across {state.cycle} snapshots."
         )
 
+    summary_obj = {
+        "zone_id":      "global",
+        "insight_type": "situation_summary",
+        "severity":     summary_sev,
+        "message":      summary_msg,
+        "confidence":   1.0,
+    }
+
+    if signals is not None:
+        enriched_alerts = [enrich_alert(a, signals, alerts) for a in alerts]
+        summary_obj.update(build_summary_decisions(alerts, enriched_alerts))
+        alert_payload = enriched_alerts
+    else:
+        alert_payload = [_alert_to_dict(a) for a in alerts]
+
     return {
         "snapshot_ts":     snapshot_ts,
         "cycle":           state.cycle,
         "elapsed_seconds": elapsed,
-        "summary": {
-            "zone_id":      "global",
-            "insight_type": "situation_summary",
-            "severity":     summary_sev,
-            "message":      summary_msg,
-            "confidence":   1.0,
-        },
-        "alerts": [_alert_to_dict(a) for a in alerts],
+        "summary":         summary_obj,
+        "alerts":          alert_payload,
     }
 
 
@@ -233,8 +248,15 @@ def _build_headline(alerts: list) -> str | None:
     return f"{sev} — {label} {type_phrase}"
 
 
-def _write_snapshot(out_dir: Path, alerts: list, events: list, state: AlertStateManager, snapshot_ts: int) -> dict:
-    payload = _build_summary(state, alerts, snapshot_ts)
+def _write_snapshot(
+    out_dir: Path,
+    alerts: list,
+    events: list,
+    state: AlertStateManager,
+    snapshot_ts: int,
+    signals: dict | None = None,
+) -> dict:
+    payload = _build_summary(state, alerts, snapshot_ts, signals=signals)
     critical = sum(1 for a in alerts if a.severity == "critical")
     warning  = sum(1 for a in alerts if a.severity == "warning")
     total    = len(alerts)
@@ -385,7 +407,9 @@ def process_snapshot(
         snapshot_ts=snapshot_ts,
     )
 
-    dashboard = _write_snapshot(out_dir, active_alerts, events, state_manager, snapshot_ts)
+    dashboard = _write_snapshot(
+        out_dir, active_alerts, events, state_manager, snapshot_ts, signals=signals
+    )
     _append_events(out_dir, events)
 
     for ev in events:

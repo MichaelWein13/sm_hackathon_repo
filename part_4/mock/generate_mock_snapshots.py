@@ -1,25 +1,21 @@
 """
 Mock snapshot generator — FloorFlow demo scenario.
 
-Writes a sequence of 12 graph snapshots to movement_graphs/ and produces the
-following sequence of alerts when the engine processes them:
+Multi-sector chaos demo (~30 steps): overlapping crises in different zones
+instead of one long corridor meltdown. Traffic is shaped so the engine fires
+a mix of insight types across zone_1..zone_5.
 
-  zone_2  — persistent 'high_dwell_zone' (medical staging area, 20 s average stay)
-  zone_4  — 'anomaly' / 'unexpected_transition' at step 2 (new route discovered)
-  zone_3  — 'congestion_forecast':
-                cycle 2  → DETECTING (traffic starting to build)
-                cycle 4  → WARNING   (trend confirmed)
-                cycle 5  → WARNING   (surge: zone_4 joins as feeder)
-                cycle 6  → CRITICAL  (convergence + sustained high accumulation)
-                cycle 9  → RESOLVING (traffic drops sharply)
-                cycle 11 → RESOLVED
-  zone_3  — 'bottleneck_risk' from convergence at cycle 5
-               (both zone_1 and zone_4 feeding zone_3 simultaneously)
+  Steps  0-2   Calm start; medical staging (zone_2) begins filling
+  Steps  3-6   zone_4 appears; rare route zone_4→zone_1 (unexpected_transition)
+  Steps  5-12  zone_2 staging overload (high_dwell + accumulation) — parallel track
+  Steps  8-14  zone_3 food-hall surge (congestion + bottleneck) — resolves early
+  Steps 14-20  zone_4 practice-room convergence (bottleneck + evac from zone_2)
+  Steps 16-23  zone_5 aquarium opens; crowding + rare zone_5→zone_1 route
+  Steps 25-26  zone_4 briefly offline (isolation anomaly)
+  Steps 27-29  staggered stand-down across sectors
 
-Run this in one terminal, the engine in another:
-  cd mock
-  python3 generate_mock_snapshots.py
-  python3 ../insight_engine/engine.py --graph-dir movement_graphs --out-dir anomaly_reports
+Run:
+  python3 mock/generate_mock_snapshots.py --api-url http://127.0.0.1:8765/ingest/graph
 """
 
 import argparse
@@ -30,29 +26,93 @@ import urllib.request
 from pathlib import Path
 
 OUTPUT_DIR = Path(__file__).parent / "movement_graphs"
-DEFAULT_INTERVAL_S = 3.0   # seconds between snapshots — adjust for demo pacing
-DEFAULT_STEPS    = 12
-WINDOW_MS        = 300_000  # 5-minute logical windows
+DEFAULT_INTERVAL_S = 3.0
+DEFAULT_STEPS    = 30
+WINDOW_MS        = 300_000
 
 # ---------------------------------------------------------------------------
-# Traffic tables  (index = step number, 0-based)
+# Per-step traffic tables (index = step, 0-based)
 # ---------------------------------------------------------------------------
 
-# zone_1 → zone_3  (main inflow, grows then drops sharply during resolution)
-Z1_TO_Z3  = [3,  5,  8,  12, 17, 24, 32, 38, 15,  8,  3,  0]
+Z1_TO_Z3 = [
+    2,  2,  2,  3,  4,  5,  6,  7,  8, 10, 12, 14, 12,
+    8,  5,  3,  2,  2,  2,  2,  2,  2,  2,  2,  2,  2,
+    2,  2,  2,  2,
+]
 
-# zone_4 → zone_3  (secondary inflow; zone_4 appears at step 2, becomes major at step 4)
-Z4_TO_Z3  = [0,  0,  0,  0,  10, 16, 20, 22,  8,  3,  0,  0]
+Z4_TO_Z3 = [
+    0,  0,  0,  0,  0,  0,  0,  0,  4,  6,  8,  6,  4,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,
+]
 
-# zone_4 → zone_1  (persistent unexpected route — low-probability, triggers anomaly)
-Z4_TO_Z1  = [0,  0,  2,  2,  2,  2,  2,  2,  2,  2,  2,  0]
+Z4_TO_Z1 = [
+    0,  0,  0,  2,  2,  2,  2,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,
+]
 
-# zone_1 → zone_2  (steady intake into the medical staging / waiting area)
-Z1_TO_Z2  = [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10]
+Z1_TO_Z2 = [
+    6,  7,  8,  9, 10, 11, 12, 14, 16, 18, 20, 18, 16,
+   14, 16, 18, 20, 22, 20, 16, 12, 10,  9,  8,  8,  8,
+    8,  8,  8,  8,
+]
+
+Z2_TO_Z1 = [
+    4,  4,  3,  3,  3,  2,  2,  2,  2,  1,  1,  1,  2,
+    2,  1,  1,  0,  1,  2,  3,  4,  4,  4,  4,  4,  4,
+    4,  4,  4,  4,
+]
+
+Z2_TO_Z4 = [
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    3,  4,  5,  7,  8,  6,  4,  2,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,
+]
+
+Z1_TO_Z4 = [
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    4,  6,  8, 10, 12, 10,  8,  4,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,
+]
+
+Z4_TO_Z2 = [
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  1,  1,  1,  1,  1,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,
+]
+
+Z1_TO_Z5 = [
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  2,  4,  6,  8, 10,  8,  6,  4,  2,  0,
+    0,  0,  0,  0,
+]
+
+Z5_TO_Z1 = [
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  3,  3,  3,  2,  0,  0,  0,
+    0,  0,  0,  0,
+]
+
+Z5_TO_Z3 = [
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  2,  3,  4,  3,  2,  0,  0,  0,
+    0,  0,  0,  0,
+]
+
+Z2_DWELL_MS = [
+    20_000, 21_000, 22_000, 23_000, 24_000, 26_000, 28_000, 30_000,
+    32_000, 34_000, 36_000, 38_000, 40_000, 42_000, 44_000, 46_000,
+    48_000, 50_000, 48_000, 42_000, 36_000, 32_000, 28_000, 26_000,
+    24_000, 22_000, 20_000, 20_000, 20_000, 20_000,
+]
+
+Z4_FIRST_STEP = 3
+Z5_FIRST_STEP = 16
+Z4_ABSENT_STEPS = {25, 26}
 
 
 def _phase(step: int) -> int:
-    """Loop traffic tables for soak tests longer than one demo cycle."""
     return step % len(Z1_TO_Z3)
 
 
@@ -60,151 +120,158 @@ def _at(table: list, step: int) -> int:
     return table[_phase(step)]
 
 
+def _z4_active(step: int) -> bool:
+    return step >= Z4_FIRST_STEP and step not in Z4_ABSENT_STEPS
+
+
+def _z5_active(step: int) -> bool:
+    return step >= Z5_FIRST_STEP
+
+
+def _nodes_for(step: int) -> list[str]:
+    nodes = ["zone_1", "zone_2", "zone_3"]
+    if _z4_active(step):
+        nodes.append("zone_4")
+    if _z5_active(step):
+        nodes.append("zone_5")
+    return nodes
+
+
 def _z3_outbound(step: int, total_inbound: int) -> int:
-    """
-    During congestion (steps 0-7) people are largely trapped — outflow is low.
-    Resolution (steps 8+) is triggered by a rapid outflow surge.
-    """
     p = _phase(step)
-    if p >= 8:
-        return max(total_inbound, 2)   # everyone leaving — net accumulation ≈ 0
-    return max(total_inbound // 8, 1)  # trapped — 1 out for every 8 in
+    if 12 <= p <= 14:
+        return max(total_inbound, 2)
+    if 8 <= p <= 11:
+        return max(total_inbound // 7, 1)
+    return max(total_inbound // 3, 1)
+
+
+def _z4_outbound(step: int, total_inbound: int) -> int:
+    """Practice room traps traffic during convergence (steps 14-20)."""
+    p = _phase(step)
+    if 14 <= p <= 20:
+        return max(total_inbound // 10, 1)
+    return max(total_inbound // 2, 1)
 
 
 def _z3_dwell_ms(step: int) -> int:
-    """Dwell grows as the zone fills up, plateaus at peak, drops during resolution."""
     p = _phase(step)
-    if p <= 7:
-        return 1_500 + p * 800      # 1.5 s → 7.1 s over 8 steps
-    return max(7_100 - (p - 7) * 2_000, 1_500)
+    if p <= 11:
+        return 1_500 + p * 600
+    return max(8_100 - (p - 11) * 1_200, 1_500)
 
 
-def make_snapshot(step: int, base_ts: int) -> dict:
-    z4_active = step >= 2
+def _z5_dwell_ms(step: int) -> int:
+    if not _z5_active(step):
+        return 2_000
+    p = _phase(step)
+    if p <= 19:
+        return 2_000 + (p - 16) * 900
+    return max(5_600 - (p - 19) * 800, 2_000)
 
-    # --- Node list ---
-    nodes = ["zone_1", "zone_2", "zone_3"]
-    if z4_active:
-        nodes.append("zone_4")
 
-    # --- Edge list (snapshot-level: totals for this step) ---
-    z3_total_in = _at(Z1_TO_Z3, step) + _at(Z4_TO_Z3, step)
-    z3_out      = _z3_outbound(step, z3_total_in)
+def _edges_for(step: int) -> list[dict]:
+    """Build all flow edges for a given step (used in snapshot + time_windows)."""
+    z4_active = _z4_active(step)
+    z5_active = _z5_active(step)
+    edges: list[dict] = []
 
-    edges = []
-
-    # Main corridor → bottleneck
-    z1_z3 = _at(Z1_TO_Z3, step)
-    if z1_z3 > 0:
-        edges.append({
-            "from_zone_id":          "zone_1",
-            "to_zone_id":            "zone_3",
-            "transition_count":      z1_z3,
-            "transition_probability": min(0.35 + _phase(step) * 0.04, 0.75),
-        })
-
-    # Bottleneck outflow (slow during congestion)
-    if z3_out > 0:
-        edges.append({
-            "from_zone_id":          "zone_3",
-            "to_zone_id":            "zone_1",
-            "transition_count":      z3_out,
-            "transition_probability": 0.15,
-        })
-
-    # Medical staging area intake (stable)
-    edges.append({
-        "from_zone_id":          "zone_1",
-        "to_zone_id":            "zone_2",
-        "transition_count":      _at(Z1_TO_Z2, step),
-        "transition_probability": 0.28,
-    })
-
-    # Staging area slow discharge
-    edges.append({
-        "from_zone_id":          "zone_2",
-        "to_zone_id":            "zone_1",
-        "transition_count":      4,
-        "transition_probability": 0.18,
-    })
-
-    if z4_active:
-        # zone_4 → zone_1: unexpected low-probability route (persists — triggers anomaly)
-        if _at(Z4_TO_Z1, step) > 0:
+    def add(from_z: str, to_z: str, count: int, prob: float):
+        if count > 0:
             edges.append({
-                "from_zone_id":          "zone_4",
-                "to_zone_id":            "zone_1",
-                "transition_count":      _at(Z4_TO_Z1, step),
-                "transition_probability": 0.03,   # < 0.05 → unexpected_transition
-            })
-
-        z4_z3 = _at(Z4_TO_Z3, step)
-        if z4_z3 > 0:
-            prob = 0.04 if _phase(step) == 3 else 0.20
-            edges.append({
-                "from_zone_id":          "zone_4",
-                "to_zone_id":            "zone_3",
-                "transition_count":      z4_z3,
+                "from_zone_id":          from_z,
+                "to_zone_id":            to_z,
+                "transition_count":      count,
                 "transition_probability": prob,
             })
 
-    # --- time_windows: last 3 steps' per-window edge data ---
+    z1_z3 = _at(Z1_TO_Z3, step)
+    add("zone_1", "zone_3", z1_z3, min(0.30 + _phase(step) * 0.025, 0.65))
+
+    z3_in = z1_z3 + (_at(Z4_TO_Z3, step) if z4_active else 0)
+    add("zone_3", "zone_1", _z3_outbound(step, z3_in), 0.15)
+
+    add("zone_1", "zone_2", _at(Z1_TO_Z2, step), 0.28)
+    add("zone_2", "zone_1", _at(Z2_TO_Z1, step), 0.18)
+
+    if z4_active:
+        add("zone_4", "zone_1", _at(Z4_TO_Z1, step), 0.03)
+        z4_z3 = _at(Z4_TO_Z3, step)
+        if z4_z3 > 0:
+            add("zone_4", "zone_3", z4_z3, 0.04 if _phase(step) == 9 else 0.18)
+
+        z4_in = _at(Z1_TO_Z4, step) + _at(Z2_TO_Z4, step) + z4_z3
+        add("zone_4", "zone_2", _z4_outbound(step, z4_in), 0.12)
+        add("zone_2", "zone_4", _at(Z2_TO_Z4, step), 0.03)
+        add("zone_1", "zone_4", _at(Z1_TO_Z4, step), 0.22)
+
+    if z5_active:
+        add("zone_1", "zone_5", _at(Z1_TO_Z5, step), 0.24)
+        add("zone_5", "zone_1", _at(Z5_TO_Z1, step), 0.03)
+        add("zone_5", "zone_3", _at(Z5_TO_Z3, step), 0.16)
+
+    return edges
+
+
+def make_snapshot(step: int, base_ts: int) -> dict:
+    nodes = _nodes_for(step)
+    edges = _edges_for(step)
+
     windows = []
     for w in range(max(0, step - 2), step + 1):
-        w_z1_z3 = _at(Z1_TO_Z3, w)
-        w_z4_z3 = _at(Z4_TO_Z3, w) if w >= 2 else 0
-        w_edges = []
-        if w_z1_z3 > 0:
-            w_edges.append({
-                "from_zone_id":          "zone_1",
-                "to_zone_id":            "zone_3",
-                "transition_count":      w_z1_z3,
-                "transition_probability": min(0.35 + _phase(w) * 0.04, 0.75),
-            })
-        if w_z4_z3 > 0:
-            w_edges.append({
-                "from_zone_id":          "zone_4",
-                "to_zone_id":            "zone_3",
-                "transition_count":      w_z4_z3,
-                "transition_probability": 0.04 if _phase(w) == 3 else 0.20,
-            })
         windows.append({
             "window_start_ms": base_ts + w * WINDOW_MS,
             "window_end_ms":   base_ts + (w + 1) * WINDOW_MS,
             "window_graph": {
-                "nodes": nodes,
-                "edges": w_edges,
+                "nodes": _nodes_for(w),
+                "edges": _edges_for(w),
             },
         })
 
-    # --- Zone stats ---
+    z3_in = _at(Z1_TO_Z3, step) + (_at(Z4_TO_Z3, step) if _z4_active(step) else 0)
+
     zone_stats = {
-        "zone_1": {
-            "avg_dwell_ms": 3_000,
-            "visit_count":  20 + step,
-        },
+        "zone_1": {"avg_dwell_ms": 3_000, "visit_count": 18 + step},
         "zone_2": {
-            "avg_dwell_ms": 20_000,   # medical staging — very high dwell → high_dwell_zone
-            "visit_count":  12,
+            "avg_dwell_ms": _at(Z2_DWELL_MS, step),
+            "visit_count":  10 + _at(Z1_TO_Z2, step),
         },
         "zone_3": {
             "avg_dwell_ms": _z3_dwell_ms(step),
-            "visit_count":  z3_total_in + 5,
+            "visit_count":  z3_in + 5,
         },
     }
-    if z4_active:
+    if _z4_active(step):
         zone_stats["zone_4"] = {
-            "avg_dwell_ms": 1_500,
-            "visit_count":  3 + _at(Z4_TO_Z1, step) + _at(Z4_TO_Z3, step),
+            "avg_dwell_ms": 1_800 + _phase(step) * 100,
+            "visit_count":  4 + _at(Z1_TO_Z4, step) + _at(Z2_TO_Z4, step),
+        }
+    if _z5_active(step):
+        zone_stats["zone_5"] = {
+            "avg_dwell_ms": _z5_dwell_ms(step),
+            "visit_count":  3 + _at(Z1_TO_Z5, step) + _at(Z5_TO_Z3, step),
         }
 
     return {
         "snapshot_ts":  base_ts + step * WINDOW_MS,
         "nodes":        nodes,
-        "edges":        [e for e in edges if e["transition_count"] > 0],
+        "edges":        edges,
         "zone_stats":   zone_stats,
         "time_windows": windows,
     }
+
+
+def _step_note(step: int) -> str:
+    notes = {
+        3:  "z4 online",
+        5:  "staging↑",
+        8:  "food-hall↑ + staging",
+        14: "practice-room convergence",
+        16: "aquarium online",
+        20: "z5 rare route",
+        25: "z4 offline",
+    }
+    return notes.get(step, "")
 
 
 def _post_snapshot(api_url: str, snapshot: dict) -> dict:
@@ -221,23 +288,10 @@ def _post_snapshot(api_url: str, snapshot: dict) -> dict:
 
 def main():
     parser = argparse.ArgumentParser(description="FloorFlow mock graph snapshot generator")
-    parser.add_argument(
-        "--steps", type=int, default=DEFAULT_STEPS,
-        help=f"Number of snapshots to write (default: {DEFAULT_STEPS})",
-    )
-    parser.add_argument(
-        "--interval", type=float, default=DEFAULT_INTERVAL_S,
-        help=f"Seconds between snapshots (default: {DEFAULT_INTERVAL_S})",
-    )
-    parser.add_argument(
-        "--out-dir", type=Path, default=OUTPUT_DIR,
-        help=f"Directory for graph_<ts>.json files (default: {OUTPUT_DIR})",
-    )
-    parser.add_argument(
-        "--api-url",
-        default=None,
-        help="POST snapshots to Person 4 REST API (e.g. http://127.0.0.1:8765/ingest/graph)",
-    )
+    parser.add_argument("--steps", type=int, default=DEFAULT_STEPS)
+    parser.add_argument("--interval", type=float, default=DEFAULT_INTERVAL_S)
+    parser.add_argument("--out-dir", type=Path, default=OUTPUT_DIR)
+    parser.add_argument("--api-url", default=None)
     args = parser.parse_args()
 
     out_dir = args.out_dir
@@ -253,9 +307,7 @@ def main():
 
     for step in range(args.steps):
         snapshot = make_snapshot(step, base_ts)
-        ts       = base_ts + step * WINDOW_MS
-        z3_in  = _at(Z1_TO_Z3, step) + _at(Z4_TO_Z3, step)
-        z3_out = _z3_outbound(step, z3_in)
+        ts = base_ts + step * WINDOW_MS
 
         if args.api_url:
             try:
@@ -269,11 +321,9 @@ def main():
             path.write_text(json.dumps(snapshot, indent=2), encoding="utf-8")
             label = path.name
 
-        print(
-            f"  step {step:2d}  →  {label}"
-            f"   z3_in={z3_in:2d}  z3_out={z3_out:2d}"
-            f"   z4={'active' if step >= 2 else 'absent'}"
-        )
+        note = _step_note(step)
+        suffix = f"  ({note})" if note else ""
+        print(f"  step {step:2d}  →  {label}{suffix}")
 
         if step < args.steps - 1:
             time.sleep(args.interval)
