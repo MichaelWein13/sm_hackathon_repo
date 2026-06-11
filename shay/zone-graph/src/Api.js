@@ -29,8 +29,10 @@ export async function fetchGraphData() {
  */
 export async function fetchInsights() {
   try {
-    // Fetches from the public/ folder in a standard React app
-    const response = await fetch('./insights.json');
+    // Fetch insight data from the analytics endpoint
+    // const response = await fetch('./insights.json');
+    const response = await fetch('/analytics/insights');
+
 
     if (!response.ok) {
       throw new Error(`Failed to fetch insights: HTTP status ${response.status}`);
