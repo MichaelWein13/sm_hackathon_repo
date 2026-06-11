@@ -3,6 +3,9 @@ import json
 import os
 from collections import defaultdict
 from typing import Any, Dict, List, Tuple
+from fastapi import FastAPI, BackgroundTasks
+import uvicorn
+import requests
 
 import numpy as np
 import hdbscan
@@ -401,6 +404,20 @@ def main() -> None:
     print(f"\nDiscovered {zone_count} zones")
     if noise_count > 0:
         print(f"Identified {noise_count} transition/corridor points")
+
+    # --- NEW API PUSH TO PERSON 3 ---
+    # If Person 2 is on a different laptop, change localhost to Person 3's Wi-Fi IP address!
+    person_3_url = "http://localhost:8001/receive_assignments"
+
+    print(f"\nSending assignments to Person 3 at {person_3_url}...")
+    try:
+        response = requests.post(person_3_url, json=assignments)
+        if response.status_code == 200:
+            print("Delivery successful! Person 3 received the data.")
+        else:
+            print(f"Delivery failed! Person 3 returned code: {response.status_code}")
+    except requests.exceptions.ConnectionError:
+        print("ERROR: Could not connect to Person 3. Is their server running on port 8001?")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,351 @@
+{
+    "zones": [
+        {
+            "name": "aquarium",
+            "out_edges": [
+                {
+                    "name": "chava",
+                    " transition_count ": 120,
+                    " transition_probability ": 1.0
+                }
+            ],
+            "in_edges": [
+                {
+                    "name": "chava",
+                    " transition_count ": 120,
+                    " transition_probability ": 0.25
+                }
+            ],
+            "stats": {
+                "avg_dwell_ms": 1800000,
+                "visit_count": 120
+            }
+        },
+        {
+            "name": "chava",
+            "out_edges": [
+                {
+                    "name": "aquarium",
+                    " transition_count ": 120,
+                    " transition_probability ": 0.25
+                },
+                {
+                    "name": "food hall",
+                    " transition_count ": 180,
+                    " transition_probability ": 0.375
+                },
+                {
+                    "name": "practice room",
+                    " transition_count ": 120,
+                    " transition_probability ": 0.25
+                }
+            ],
+            "in_edges": [
+                {
+                    "name": "aquarium",
+                    " transition_count ": 120,
+                    " transition_probability ": 1.0
+                },
+                {
+                    "name": "food hall",
+                    " transition_count ": 180,
+                    " transition_probability ": 0.75
+                },
+                {
+                    "name": "lobby",
+                    " transition_count ": 60,
+                    " transition_probability ": 1.0
+                },
+                {
+                    "name": "practice room",
+                    " transition_count ": 120,
+                    " transition_probability ": 1.0
+                }
+            ],
+            "stats": {
+                "avg_dwell_ms": 450000,
+                "visit_count": 480
+            }
+        },
+        {
+            "name": "food hall",
+            "out_edges": [
+                {
+                    "name": "chava",
+                    " transition_count ": 180,
+                    " transition_probability ": 0.7
+                },
+                {
+                    "name": "kitchen",
+                    " transition_count ": 60,
+                    " transition_probability ": 0.25
+                },
+                {
+                    "name": "practice room",
+                    " transition_count ": 12,
+                    " transition_probability ": 0.05
+                }
+            ],
+            "in_edges": [
+                {
+                    "name": "chava",
+                    " transition_count ": 180,
+                    " transition_probability ": 0.375
+                },
+                {
+                    "name": "kitchen",
+                    " transition_count ": 60,
+                    " transition_probability ": 1.0
+                }
+            ],
+            "stats": {
+                "avg_dwell_ms": 2700000,
+                "visit_count": 240
+            }
+        },
+        {
+            "name": "kitchen",
+            "out_edges": [
+                {
+                    "name": "food hall",
+                    " transition_count ": 60,
+                    " transition_probability ": 1.0
+                }
+            ],
+            "in_edges": [
+                {
+                    "name": "food hall",
+                    " transition_count ": 60,
+                    " transition_probability ": 0.25
+                }
+            ],
+            "stats": {
+                "avg_dwell_ms": 5400000,
+                "visit_count": 60
+            }
+        },
+        {
+            "name": "lobby",
+            "out_edges": [
+                {
+                    "name": "chava",
+                    " transition_count ": 60,
+                    " transition_probability ": 1.0
+                }
+            ],
+            "in_edges": [
+                {
+                    "name": "chava",
+                    " transition_count ": 60,
+                    " transition_probability ": 0.125
+                }
+            ],
+            "stats": {
+                "avg_dwell_ms": 150000,
+                "visit_count": 60
+            }
+        },
+        {
+            "name": "practice room",
+            "out_edges": [
+                {
+                    "name": "chava",
+                    " transition_count ": 120,
+                    " transition_probability ": 1.0
+                }
+            ],
+            "in_edges": [
+                {
+                    "name": "chava",
+                    " transition_count ": 120,
+                    " transition_probability ": 0.25
+                }
+            ],
+            "stats": {
+                "avg_dwell_ms": 3600000,
+                "visit_count": 120
+            }
+        }
+    ],
+    " time_windows ": [
+        {
+            " window_start_ms ": 1718100000000,
+            " window_end_ms ": 1718103600000,
+            " window_graph ": {
+                " nodes ": [
+                    {
+                        "name": "aquarium",
+                        "out_edges": [
+                            {
+                                "name": "chava",
+                                " transition_count ": 12,
+                                " transition_probability ": 1.0
+                            }
+                        ],
+                        "in_edges": [
+                            {
+                                "name": "chava",
+                                " transition_count ": 12,
+                                " transition_probability ": 0.25
+                            }
+                        ],
+                        "stats": {
+                            "avg_dwell_ms": 1750000,
+                            "visit_count": 12
+                        }
+                    },
+                    {
+                        "name": "chava",
+                        "out_edges": [
+                            {
+                                "name": "aquarium",
+                                " transition_count ": 12,
+                                " transition_probability ": 0.25
+                            },
+                            {
+                                "name": "food hall",
+                                " transition_count ": 18,
+                                " transition_probability ": 0.375
+                            },
+                            {
+                                "name": "lobby",
+                                " transition_count ": 6,
+                                " transition_probability ": 0.125
+                            },
+                            {
+                                "name": "practice room",
+                                " transition_count ": 12,
+                                " transition_probability ": 0.25
+                            }
+                        ],
+                        "in_edges": [
+                            {
+                                "name": "aquarium",
+                                " transition_count ": 12,
+                                " transition_probability ": 1.0
+                            },
+                            {
+                                "name": "food hall",
+                                " transition_count ": 18,
+                                " transition_probability ": 0.75
+                            },
+                            {
+                                "name": "lobby",
+                                " transition_count ": 6,
+                                " transition_probability ": 1.0
+                            },
+                            {
+                                "name": "practice room",
+                                " transition_count ": 12,
+                                " transition_probability ": 1.0
+                            }
+                        ],
+                        "stats": {
+                            "avg_dwell_ms": 420000,
+                            "visit_count": 48
+                        }
+                    },
+                    {
+                        "name": "food hall",
+                        "out_edges": [
+                            {
+                                "name": "chava",
+                                " transition_count ": 18,
+                                " transition_probability ": 0.75
+                            },
+                            {
+                                "name": "kitchen",
+                                " transition_count ": 6,
+                                " transition_probability ": 0.25
+                            },
+                            {
+                                "name": "practice room",
+                                " transition_count ": 12,
+                                " transition_probability ": 0.25
+                            }
+                        ],
+                        "in_edges": [
+                            {
+                                "name": "chava",
+                                " transition_count ": 18,
+                                " transition_probability ": 0.375
+                            },
+                            {
+                                "name": "kitchen",
+                                " transition_count ": 6,
+                                " transition_probability ": 1.0
+                            }
+                        ],
+                        "stats": {
+                            "avg_dwell_ms": 2600000,
+                            "visit_count": 24
+                        }
+                    },
+                    {
+                        "name": "kitchen",
+                        "out_edges": [
+                            {
+                                "name": "food hall",
+                                " transition_count ": 6,
+                                " transition_probability ": 1.0
+                            }
+                        ],
+                        "in_edges": [
+                            {
+                                "name": "food hall",
+                                " transition_count ": 6,
+                                " transition_probability ": 0.25
+                            }
+                        ],
+                        "stats": {
+                            "avg_dwell_ms": 5300000,
+                            "visit_count": 6
+                        }
+                    },
+                    {
+                        "name": "lobby",
+                        "out_edges": [
+                            {
+                                "name": "chava",
+                                " transition_count ": 6,
+                                " transition_probability ": 1.0
+                            }
+                        ],
+                        "in_edges": [
+                            {
+                                "name": "chava",
+                                " transition_count ": 6,
+                                " transition_probability ": 0.125
+                            }
+                        ],
+                        "stats": {
+                            "avg_dwell_ms": 140000,
+                            "visit_count": 6
+                        }
+                    },
+                    {
+                        "name": "practice room",
+                        "out_edges": [
+                            {
+                                "name": "chava",
+                                " transition_count ": 12,
+                                " transition_probability ": 1.0
+                            }
+                        ],
+                        "in_edges": [
+                            {
+                                "name": "chava",
+                                " transition_count ": 12,
+                                " transition_probability ": 0.25
+                            }
+                        ],
+                        "stats": {
+                            "avg_dwell_ms": 3550000,
+                            "visit_count": 12
+                        }
+                    }
+                ]
+            }
+        }
+    ]
+}
