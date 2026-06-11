@@ -173,17 +173,18 @@ def receive_from_person_2(person_2_output: list, background_tasks: BackgroundTas
 
 
 # --- 🌟 NEW ENDPOINT: THE LOCAL SIMULATOR (Read from File) ---
+# --- 🌟 ENDPOINT 2: THE LOCAL SIMULATOR (Read from File) ---
 @app.get("/simulate_person_2")
 def simulate_local_data_load(background_tasks: BackgroundTasks):
-    """Reads assignments.json from the folder and pretends Person 2 just sent it."""
+    """Reads assignments_improved.json from the folder and pretends Person 2 just sent it."""
     global LATEST_GRAPH_DATA
 
     # Make sure the file actually exists first
-    if not os.path.exists("assignments.json"):
-        return {"error": "Could not find 'assignments.json' in your folder. Make sure you pasted it in!"}
+    if not os.path.exists("assignments_improved.json"):
+        return {"error": "Could not find 'assignments_improved.json' in your folder. Make sure you pasted it in!"}
 
     # Open and read the file
-    with open("assignments.json", "r") as f:
+    with open("assignments_improved.json", "r") as f:
         person_2_output = json.load(f)
 
     print(f"\n--- 🤖 SIMULATOR TRIGGERED! Loaded {len(person_2_output)} observations locally. ---")
@@ -198,7 +199,10 @@ def simulate_local_data_load(background_tasks: BackgroundTasks):
     background_tasks.add_task(send_to_node, PERSON_4_URL, "Person 4", final_graph)
     background_tasks.add_task(send_to_node, PERSON_5_URL, "Person 5", final_graph)
 
-    return {"status": "Local Simulation Complete", "message": f"Successfully loaded {len(person_2_output)} records from assignments.json and forwarded to the team."}
+    return {
+        "status": "Local Simulation Complete",
+        "message": f"Successfully loaded {len(person_2_output)} records from assignments_improved.json and forwarded to the team."
+    }
 
 
 # --- ENDPOINT 3: PERSON 5 PULLS DATA FROM HERE ---
