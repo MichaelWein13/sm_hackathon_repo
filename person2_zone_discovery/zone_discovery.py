@@ -3,10 +3,12 @@ import json
 import os
 from collections import defaultdict
 from typing import Any, Dict, List, Tuple
+from fastapi import FastAPI, BackgroundTasks
+import uvicorn
+import requests
 
 import numpy as np
-from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
+import hdbscan
 from sklearn.preprocessing import StandardScaler
 
 
@@ -39,8 +41,8 @@ def validate_record(record: Record) -> None:
         raise ValueError("signal_vector must be a list")
 
     for value in record["signal_vector"]:
-        if not isinstance(value, (int, float)):
-            raise ValueError("signal_vector must contain only numbers")
+        if value is not None and not isinstance(value, (int, float)):
+            raise ValueError("signal_vector must contain only numbers or null")
 
 
 
@@ -72,6 +74,9 @@ def combine_group_into_observation(records_at_same_moment: List[Record]) -> Obse
         timestamps.append(timestamp_ms)
 
         for index, value in enumerate(signal_vector):
+            if value is None:
+                continue  # Skip null values
+                
             feature_name = f"{source_type}_{index}"
 
             if feature_name not in feature_sums:
@@ -184,53 +189,41 @@ def build_feature_matrix(
     return np.array(rows, dtype=float), feature_names
 
 
-def choose_number_of_zones(X_scaled: np.ndarray, max_zones: int) -> int:
-    number_of_samples = len(X_scaled)
-
-    if number_of_samples < 4:
-        return 1
-
-    best_k = 2
-    best_score = -1.0
-
-    highest_k_to_try = min(max_zones, number_of_samples - 1)
-
-    for k in range(2, highest_k_to_try + 1):
-        model = KMeans(n_clusters=k, random_state=42, n_init=10)
-        labels = model.fit_predict(X_scaled)
-
-        if len(set(labels)) < 2:
-            continue
-
-        score = silhouette_score(X_scaled, labels)
-
-        if score > best_score:
-            best_score = score
-            best_k = k
-
-    return best_k
-
-def compute_zone_confidence(distances_to_centers: np.ndarray) -> float:
-    if len(distances_to_centers) == 1:
-        return 1.0
-
-    exp_values = np.exp(-distances_to_centers)
-    probabilities = exp_values / np.sum(exp_values)
-
-    model_confidence = float(np.max(probabilities))
-
-    return round(max(0.0, min(1.0, model_confidence)), 4)
+def compute_zone_confidence(probabilities: np.ndarray) -> float:
+    """
+    Compute confidence based on HDBSCAN membership probabilities.
+    Higher probability = higher confidence that the point belongs to its assigned cluster.
+    """
+    if len(probabilities) == 0:
+        return 0.0
+    
+    # HDBSCAN gives us the probability of membership in the assigned cluster
+    # This is already a good confidence metric
+    max_prob = float(np.max(probabilities))
+    
+    return round(max(0.0, min(1.0, max_prob)), 4)
 
 
 def discover_zones(
     records: List[Record],
-    max_zones: int = 8,
+    min_cluster_size: int = 5,
     time_window_ms: int = 250,
 ) -> Tuple[List[Record], List[Record]]:
+    """
+    Discover zones using HDBSCAN density-based clustering.
+    
+    Args:
+        records: List of observation records
+        min_cluster_size: Minimum number of points to form a dense cluster
+        time_window_ms: Time window for grouping multi-source observations
+    
+    Returns:
+        Tuple of (assignments, zone_definitions)
+    """
     combined_observations = group_records_by_moment(
-    records,
-    time_window_ms=time_window_ms,
-)
+        records,
+        time_window_ms=time_window_ms,
+    )
 
     if len(combined_observations) == 0:
         return [], []
@@ -240,48 +233,84 @@ def discover_zones(
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
 
-    number_of_zones = choose_number_of_zones(X_scaled, max_zones)
-
-    model = KMeans(
-        n_clusters=number_of_zones,
-        random_state=42,
-        n_init=10,
+    # HDBSCAN: discovers number of clusters automatically
+    # min_cluster_size is the key hyperparameter
+    clusterer = hdbscan.HDBSCAN(
+        min_cluster_size=min_cluster_size,
+        min_samples=1,  # More sensitive to local density variations
+        cluster_selection_epsilon=0.0,
+        metric='euclidean',
+        cluster_selection_method='eom',  # Excess of Mass - good for varying density
     )
 
-    labels = model.fit_predict(X_scaled)
-    centers_original_scale = scaler.inverse_transform(model.cluster_centers_)
+    labels = clusterer.fit_predict(X_scaled)
+    probabilities = clusterer.probabilities_
 
+    # Separate noise points (label -1) from valid clusters
+    unique_labels = sorted(set(labels))
+    
+    # Check if we have noise points
+    has_noise = -1 in unique_labels
+    if has_noise:
+        unique_labels = [l for l in unique_labels if l != -1]
+    
+    # If no clusters found, treat everything as one zone
+    if len(unique_labels) == 0:
+        labels = np.zeros(len(labels), dtype=int)
+        unique_labels = [0]
+        probabilities = np.ones(len(labels))
+
+    # Create zone ID mapping (skip noise points for zone IDs)
     label_to_zone_id = {}
-
-    for index, label in enumerate(sorted(set(labels))):
+    for index, label in enumerate(unique_labels):
         label_to_zone_id[label] = f"zone_{index + 1}"
+    
+    # Noise points get special treatment
+    if has_noise:
+        label_to_zone_id[-1] = "transition"  # Noise = corridor/transition area
+
+    # Compute cluster centers for valid zones
+    cluster_centers = {}
+    for label in unique_labels:
+        mask = labels == label
+        cluster_centers[label] = np.mean(X_scaled[mask], axis=0)
 
     assignments = []
 
-    for observation, label, x_scaled in zip(
+    for observation, label, prob in zip(
         combined_observations,
         labels,
-        X_scaled,
+        probabilities,
     ):
-        distances = np.linalg.norm(model.cluster_centers_ - x_scaled, axis=1)
+        zone_id = label_to_zone_id[label]
+        
+        # For noise points, confidence is based on how "noisy" they are
+        # Lower probability = more likely to be in transition/corridor
+        if label == -1:
+            # Invert probability for noise - low prob = high confidence it's a transition
+            zone_confidence = round(1.0 - float(prob), 4)
+        else:
+            zone_confidence = round(float(prob), 4)
 
         assignment = {
             "timestamp_ms": observation["timestamp_ms"],
             "device_id": observation["device_id"],
-            "zone_id": label_to_zone_id[label],
-            "zone_confidence": compute_zone_confidence(
-                distances
-            ),
+            "zone_id": zone_id,
+            "zone_confidence": zone_confidence,
         }
 
         assignments.append(assignment)
 
+    # Create zone definitions
     zone_definitions = []
 
-    for label in sorted(set(labels)):
+    for label in unique_labels:
         zone_id = label_to_zone_id[label]
         zone_size = int(np.sum(labels == label))
-        prototype_vector = centers_original_scale[label].tolist()
+        
+        # Get prototype vector (cluster center in original scale)
+        center_scaled = cluster_centers[label]
+        prototype_vector = scaler.inverse_transform(center_scaled.reshape(1, -1))[0].tolist()
 
         zone_definition = {
             "zone_id": zone_id,
@@ -292,6 +321,15 @@ def discover_zones(
         }
 
         zone_definitions.append(zone_definition)
+    
+    # Add transition/noise zone definition if it exists
+    if has_noise:
+        noise_size = int(np.sum(labels == -1))
+        zone_definitions.append({
+            "zone_id": "transition",
+            "prototype_vector": [],  # No centroid for noise
+            "zone_size": noise_size,
+        })
 
     return assignments, zone_definitions
 
@@ -308,7 +346,7 @@ def save_json(data: Any, output_path: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Person 2: Discover zones from standardized wireless observations."
+        description="Person 2: Discover zones from standardized wireless observations using HDBSCAN."
     )
 
     parser.add_argument(
@@ -318,29 +356,29 @@ def main() -> None:
     )
 
     parser.add_argument(
-    "--assignments-output",
-    default="person2_zone_discovery/outputs/assignments.json",
-    help="Where to save zone assignment records.",
-)
-
-    parser.add_argument(
-    "--zones-output",
-    default="person2_zone_discovery/outputs/zones.json",
-    help="Where to save zone definition records.",
-)
-
-    parser.add_argument(
-        "--max-zones",
-        type=int,
-        default=8,
-        help="Maximum number of zones to try.",
+        "--assignments-output",
+        default="person2_zone_discovery/outputs/assignments.json",
+        help="Where to save zone assignment records.",
     )
 
     parser.add_argument(
-    "--time-window-ms",
-    type=int,
-    default=250,
-    help="Maximum time difference, in milliseconds, for combining different-source records from the same device.",
+        "--zones-output",
+        default="person2_zone_discovery/outputs/zones.json",
+        help="Where to save zone definition records.",
+    )
+
+    parser.add_argument(
+        "--min-cluster-size",
+        type=int,
+        default=5,
+        help="Minimum number of points to form a dense cluster (HDBSCAN parameter).",
+    )
+
+    parser.add_argument(
+        "--time-window-ms",
+        type=int,
+        default=250,
+        help="Maximum time difference, in milliseconds, for combining different-source records from the same device.",
     )
 
     args = parser.parse_args()
@@ -348,15 +386,38 @@ def main() -> None:
     records = load_records(args.input)
 
     assignments, zone_definitions = discover_zones(
-    records,
-    max_zones=args.max_zones,
-    time_window_ms=args.time_window_ms,)
+        records,
+        min_cluster_size=args.min_cluster_size,
+        time_window_ms=args.time_window_ms,
+    )
 
     save_json(assignments, args.assignments_output)
     save_json(zone_definitions, args.zones_output)
 
     print(f"Saved {len(assignments)} assignment records to {args.assignments_output}")
     print(f"Saved {len(zone_definitions)} zone definitions to {args.zones_output}")
+    
+    # Print summary
+    noise_count = sum(1 for a in assignments if a["zone_id"] == "transition")
+    zone_count = len([z for z in zone_definitions if z["zone_id"] != "transition"])
+    
+    print(f"\nDiscovered {zone_count} zones")
+    if noise_count > 0:
+        print(f"Identified {noise_count} transition/corridor points")
+
+    # --- NEW API PUSH TO PERSON 3 ---
+    # If Person 2 is on a different laptop, change localhost to Person 3's Wi-Fi IP address!
+    person_3_url = "http://localhost:8001/receive_assignments"
+
+    print(f"\nSending assignments to Person 3 at {person_3_url}...")
+    try:
+        response = requests.post(person_3_url, json=assignments)
+        if response.status_code == 200:
+            print("Delivery successful! Person 3 received the data.")
+        else:
+            print(f"Delivery failed! Person 3 returned code: {response.status_code}")
+    except requests.exceptions.ConnectionError:
+        print("ERROR: Could not connect to Person 3. Is their server running on port 8001?")
 
 
 if __name__ == "__main__":

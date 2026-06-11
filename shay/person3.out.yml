@@ -1,0 +1,132 @@
+openapi: 3.0.0
+info:
+  title: Zone Analytics API
+  description: API for managing and retrieving spatial zone statistics with structured time window graphs.
+  version: 1.0.0
+paths:
+  /analytics/zones:
+    get:
+      summary: Get zone metrics and time window graphs
+      description: Returns a breakdown of spatial zones alongside chronological window graphs with fully embedded node/edge structures.
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ZoneAnalyticsResponse'
+              example:
+                zones:
+                  - name: zone_1
+                    out_edges:
+                      - name: zone_2
+                        " transition_count ": 18
+                        " transition_probability ": 0.72
+                      - name: zone_3
+                        " transition_count ": 18
+                        " transition_probability ": 0.72
+                    in_edges:
+                      - name: zone_2
+                        " transition_count ": 14
+                        " transition_probability ": 0.52
+                    stats:
+                      avg_dwell_ms: 4200
+                      visit_count: 31
+                " time_windows ":
+                  - " window_start_ms ": 1710000000000
+                    " window_end_ms ": 1710000300000
+                    " window_graph ":
+                      " nodes ":
+                        - name: zone_1
+                          out_edges:
+                            - name: zone_2
+                              " transition_count ": 18
+                              " transition_probability ": 0.72
+                            - name: zone_3
+                              " transition_count ": 18
+                              " transition_probability ": 0.72
+                          in_edges:
+                            - name: zone_2
+                              " transition_count ": 14
+                              " transition_probability ": 0.52
+                        - name: zone_2
+                          out_edges: []
+                          in_edges:
+                            - name: zone_1
+                              " transition_count ": 18
+                              " transition_probability ": 0.72
+                        - name: zone_3
+                          out_edges: []
+                          in_edges:
+                            - name: zone_1
+                              " transition_count ": 18
+                              " transition_probability ": 0.72
+
+components:
+  schemas:
+    ZoneAnalyticsResponse:
+      type: object
+      properties:
+        zones:
+          type: array
+          items:
+            $ref: '#/components/schemas/ZoneNode'
+        " time_windows ":
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeWindow'
+
+    TimeWindow:
+      type: object
+      properties:
+        " window_start_ms ":
+          type: integer
+          format: int64
+        " window_end_ms ":
+          type: integer
+          format: int64
+        " window_graph ":
+          $ref: '#/components/schemas/WindowGraph'
+
+    WindowGraph:
+      type: object
+      properties:
+        " nodes ":
+          type: array
+          items:
+            $ref: '#/components/schemas/ZoneNode'
+
+    ZoneNode:
+      type: object
+      properties:
+        name:
+          type: string
+        out_edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/Edge'
+        in_edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/Edge'
+        stats:
+          $ref: '#/components/schemas/ZoneStats'
+
+    Edge:
+      type: object
+      properties:
+        name:
+          type: string
+        " transition_count ":
+          type: integer
+        " transition_probability ":
+          type: number
+          format: float
+
+    ZoneStats:
+      type: object
+      properties:
+        avg_dwell_ms:
+          type: integer
+        visit_count:
+          type: integer
