@@ -1,5 +1,9 @@
 import json
 from collections import defaultdict
+from fastapi import FastAPI, BackgroundTasks
+import uvicorn
+import requests
+
 
 class MovementGraphBuilder:
     def __init__(self, window_size_ms=300000):
@@ -127,16 +131,44 @@ class MovementGraphBuilder:
         return formatted_edges
 
 # --- Test Data & Execution ---
-if __name__ == "__main__":
-    # Open the file your friend uploaded (change the filename to match theirs!)
-    with open('/Users/arielmiron/Desktop/Hackathon/sm_hackathon_repo/person2_zone_discovery/outputs/assignments.json', 'r') as file:
-        person_2_output = json.load(file)
 
-    # The rest stays exactly the same
-    builder = MovementGraphBuilder()
+app = FastAPI()
+builder = MovementGraphBuilder()
+
+# This creates the "door" that Person 4 will knock on
+PERSON_4_URL = "http://localhost:8765/receive_graph"
+
+def send_to_person_4(graph_data):
+    """This function handles the push to Person 4"""
+    print(f"Sending newly built graph to Person 4 at {PERSON_4_URL}...")
+    try:
+        response = requests.post(PERSON_4_URL, json=graph_data)
+        if response.status_code == 200:
+            print("Delivery successful! Person 4 has the data.\n")
+        else:
+            print(f"Delivery failed! Person 4 returned code: {response.status_code}\n")
+    except requests.exceptions.ConnectionError:
+        print("ERROR: Could not connect to Person 4. Is their server running?\n")
+
+# --- THE LISTENING DOOR FOR PERSON 2 ---
+@app.post("/receive_assignments")
+def receive_from_person_2(person_2_output: list, background_tasks: BackgroundTasks):
+    print(f"Incoming data! Received {len(person_2_output)} observations from Person 2.")
+
+    # 1. Build the graph immediately
     final_graph = builder.build_graph(person_2_output)
 
+    # Optional: Keep a local backup of the latest run just in case
     with open('final_movement_graph.json', 'w') as out_file:
         json.dump(final_graph, out_file, indent=2)
 
-    print("Graph successfully saved to final_movement_graph.json!")
+    # 2. Tell FastAPI to send the data to Person 4 in the background
+    background_tasks.add_task(send_to_person_4, final_graph)
+
+    # 3. Instantly reply to Person 2 so their script doesn't freeze
+    return {"status": "Success! Graph built and forwarded to Person 4."}
+
+if __name__ == "__main__":
+    print("Starting Person 3 Pipeline Node...")
+    # Notice the port is 8001! This prevents conflicts if you and Person 4 test on the same laptop.
+    uvicorn.run(app, host="0.0.0.0", port=8001)
