@@ -15,7 +15,7 @@ with open('../person_one_cleaning_data/converted_data/converted_ble_data.json') 
 # Let's use a simplified approach: load assignments and analyze zone statistics
 
 print("\n[2/4] Loading optimal zone assignments...")
-with open('outputs/assignments_optimal.json') as f:
+with open('../person_3_pipeline/assignments_optimal.json') as f:
     optimal_assignments = json.load(f)
 
 print(f"   Loaded {len(optimal_assignments)} assignments")

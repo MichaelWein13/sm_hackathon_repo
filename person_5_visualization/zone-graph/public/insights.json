@@ -1,0 +1,69 @@
+{
+  "snapshot_ts": 1718045312000,
+  "cycle": 7,
+  "elapsed_seconds": 420,
+  "summary": {
+    "zone_id": "global",
+    "insight_type": "situation_summary",
+    "severity": "warning",
+    "message": "5 active alerts across the final movement graph. Bottleneck risk concentrated near zone_28 and high transition pressure at zone_1.",
+    "confidence": 0.98
+  },
+  "alerts": [
+    {
+      "id": "zone_28__bottleneck_risk",
+      "zone_id": "zone_28",
+      "insight_type": "bottleneck_risk",
+      "severity": "critical",
+      "message": "High inbound traffic into zone_28 indicates a potential flow bottleneck.",
+      "confidence": 0.92,
+      "first_seen_ts": 1718041200000,
+      "last_updated_ts": 1718042400000,
+      "cycle_count": 3
+    },
+    {
+      "id": "zone_1__high_dwell_zone",
+      "zone_id": "zone_1",
+      "insight_type": "high_dwell_zone",
+      "severity": "warning",
+      "message": "Dwell time in zone_1 is elevated due to increased transition volume.",
+      "confidence": 0.87,
+      "first_seen_ts": 1718038000000,
+      "last_updated_ts": 1718043000000,
+      "cycle_count": 6
+    },
+    {
+      "id": "zone_4__unexpected_transition",
+      "zone_id": "zone_4",
+      "insight_type": "unexpected_transition",
+      "severity": "warning",
+      "message": "Unusual transition flow detected through zone_4 compared to historical movement patterns.",
+      "confidence": 0.78,
+      "first_seen_ts": 1718044000000,
+      "last_updated_ts": 1718044500000,
+      "cycle_count": 1
+    },
+    {
+      "id": "zone_14__congestion_forecast",
+      "zone_id": "zone_14",
+      "insight_type": "congestion_forecast",
+      "severity": "warning",
+      "message": "Zone_14 is forecasted to reach congestion levels within the next cycle.",
+      "confidence": 0.74,
+      "first_seen_ts": 1718042000000,
+      "last_updated_ts": 1718043500000,
+      "cycle_count": 4
+    },
+    {
+      "id": "zone_19__anomaly",
+      "zone_id": "zone_19",
+      "insight_type": "anomaly",
+      "severity": "critical",
+      "message": "Traffic flow in zone_19 is significantly lower than expected for this movement graph.",
+      "confidence": 0.81,
+      "first_seen_ts": 1718041000000,
+      "last_updated_ts": 1718043800000,
+      "cycle_count": 5
+    }
+  ]
+}

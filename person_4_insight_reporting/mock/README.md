@@ -6,7 +6,7 @@ Simulates Person 3 by POSTing movement graph snapshots to the insight engine RES
 
 ## Quick demo (recommended)
 
-From `part_4/`:
+From `person_4_insight_reporting/`:
 
 ```bash
 ./scripts/run_demo.sh
@@ -111,7 +111,7 @@ python3 mock/generate_mock_snapshots.py \
 
 ## Output
 
-Each POST still writes backup files to `--out-dir` (default `../../floorflow-io/anomaly_reports/` when run from `part_4/`):
+Each POST still writes backup files to `--out-dir` (default `../../floorflow-io/anomaly_reports/` when run from `part_4_insight_reporting/`):
 
 | File | Contents |
 |---|---|

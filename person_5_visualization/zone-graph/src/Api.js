@@ -4,9 +4,16 @@
  *
  * @returns {Promise<Object>} The parsed JSON data containing zones and time windows.
  */
-export async function fetchGraphData() {
+export async function fetchGraphData(source = 'endpoint') {
   try {
-    // Fetch graph data from the API endpoint instead of the local mock graph.json.
+    if (source === 'static') {
+      const response = await fetch('/final_movement_graph.json');
+      if (!response.ok) {
+        throw new Error(`Failed to load static graph JSON: HTTP status ${response.status}`);
+      }
+      return await response.json();
+    }
+
     const response = await fetch('/analytics/graph', {
       method: 'POST',
       headers: {
@@ -21,7 +28,7 @@ export async function fetchGraphData() {
 
     return await response.json();
   } catch (error) {
-    console.error("Error in fetchGraphData:", error);
+    console.error('Error in fetchGraphData:', error);
     throw error;
   }
 }
@@ -32,8 +39,16 @@ export async function fetchGraphData() {
  *
  * @returns {Promise<Array>} The parsed JSON array containing zone insights.
  */
-export async function fetchInsights() {
+export async function fetchInsights(source = 'endpoint') {
   try {
+    if (source === 'static') {
+      const response = await fetch('/insights.json');
+      if (!response.ok) {
+        throw new Error(`Failed to load static insights JSON: HTTP status ${response.status}`);
+      }
+      return await response.json();
+    }
+
     // Fetch insight data from the analytics endpoint.
     // The same endpoint is also used for SSE subscriptions in App.js.
     const response = await fetch('/analytics/insights');
