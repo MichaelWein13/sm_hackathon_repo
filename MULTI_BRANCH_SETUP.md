@@ -69,8 +69,8 @@ All folders appear in the sidebar at once.
 | 1 — Signals | standardized JSON (feeds Person 2) | raw BLE / Wi-Fi data |
 | 2 — Zones | zone assignments (feeds Person 3) | Person 1 output |
 | 3 — Movement graph | `POST http://localhost:8765/ingest/graph` | zone data from Person 2 |
-| 4 — Insight engine | `floorflow-io/anomaly_reports/` (file backup) | `POST /ingest/graph` |
-| 5 — Visualization | — | `GET http://localhost:8765/analytics/insights` |
+| 4 — Insight engine | SSE + `floorflow-io/anomaly_reports/` (file backup) | `POST /ingest/graph` |
+| 5 — Visualization | — | `GET http://localhost:8765/analytics/stream` (SSE) |
 
 **Start Person 4 (from repo root):**
 
@@ -90,6 +90,16 @@ python3 insight_engine/engine.py \
 curl -X POST http://127.0.0.1:8765/ingest/graph \
   -H "Content-Type: application/json" \
   -d @final_movement_graph.json
+```
+
+**Person 5 connects (SSE):**
+
+```bash
+# Terminal: watch live events
+curl -sN http://127.0.0.1:8765/analytics/stream
+
+# React app: EventSource('/analytics/stream') with proxy in package.json
+# See part_4/README.md → "Person 5 — migration guide (SSE)"
 ```
 
 See [`DEPLOYMENT.md`](DEPLOYMENT.md) for full run modes and troubleshooting.

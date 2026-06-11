@@ -6,7 +6,8 @@ Primary integration (REST):
   python3 engine.py --serve --api-only --out-dir ../anomaly_reports
 
   Person 3: POST /ingest/graph
-  Person 5: GET  /analytics/insights
+  Person 5: GET  /analytics/stream  (SSE, primary)
+            GET  /analytics/insights  (REST fallback)
 
 Legacy file watch (optional):
   python3 engine.py --watch-files --graph-dir ../movement_graphs --out-dir ../anomaly_reports
@@ -20,6 +21,7 @@ import argparse
 import json
 import logging
 import os
+import queue
 import sys
 import threading
 import time
@@ -51,7 +53,9 @@ INGEST_API_PATH  = "/ingest/graph"      # Person 3: POST movement graph snapshot
 PERSON5_API_PATH = "/analytics/insights"  # Person 5: flat ZoneInsight array (legacy)
 ALERTS_API_PATH  = "/analytics/alerts"    # Person 5: full alerts + severity/lifecycle
 SUMMARY_API_PATH = "/analytics/summary"   # Person 5: global headline
+STREAM_API_PATH  = "/analytics/stream"    # Person 5: SSE live feed (primary)
 HEALTH_API_PATH  = "/health"
+SSE_HEARTBEAT_S  = 15.0
 
 # Person 2 HDBSCAN noise label — not a real sector
 _NOISE_ZONE_IDS  = frozenset({"transition"})
@@ -321,6 +325,49 @@ class DirectoryWatcher:
 
 
 # ---------------------------------------------------------------------------
+# SSE broadcast (Person 5 live dashboard)
+# ---------------------------------------------------------------------------
+
+class SSEHub:
+    """Fan-out channel for Server-Sent Events subscribers."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._subscribers: list[queue.Queue] = []
+
+    def subscribe(self) -> queue.Queue:
+        q: queue.Queue = queue.Queue(maxsize=256)
+        with self._lock:
+            self._subscribers.append(q)
+        return q
+
+    def unsubscribe(self, q: queue.Queue) -> None:
+        with self._lock:
+            if q in self._subscribers:
+                self._subscribers.remove(q)
+
+    def _broadcast(self, event: str, data: dict) -> None:
+        msg = {"event": event, "data": data}
+        with self._lock:
+            subs = list(self._subscribers)
+        for sub in subs:
+            try:
+                sub.put_nowait(msg)
+            except queue.Full:
+                logger.warning("SSE subscriber queue full — dropping event")
+
+    def publish_cycle(self, dashboard: dict, events: list) -> None:
+        for ev in events:
+            self._broadcast(ev.get("event", "updated"), ev)
+        self._broadcast("cycle_update", dashboard)
+
+
+def _format_sse(event: str, data: dict) -> bytes:
+    payload = json.dumps(data, separators=(",", ":"))
+    return f"event: {event}\ndata: {payload}\n\n".encode("utf-8")
+
+
+# ---------------------------------------------------------------------------
 # Shared runtime (REST + optional file watch)
 # ---------------------------------------------------------------------------
 
@@ -353,6 +400,7 @@ class EngineRuntime:
             "alerts":          [],
             "headline":        None,
         }
+        self.sse_hub = SSEHub()
 
     def ingest(self, snapshot: dict, snapshot_ts: int | None = None) -> dict:
         snapshot = _sanitize_graph(snapshot)
@@ -363,11 +411,12 @@ class EngineRuntime:
         with self.lock:
             ts = snapshot_ts if snapshot_ts is not None else _snapshot_ts(snapshot)
             logger.info(f"Ingesting graph snapshot ts={ts}")
-            active_alerts, dashboard = process_snapshot(
+            active_alerts, dashboard, events = process_snapshot(
                 snapshot, self.state_manager, self.engine_state, self.out_dir, ts
             )
             headline = _build_headline(active_alerts)
             self.latest_dashboard = {**dashboard, "headline": headline}
+            self.sse_hub.publish_cycle(self.latest_dashboard, events)
             return {
                 "ok":           True,
                 "snapshot_ts":  ts,
@@ -390,7 +439,7 @@ def process_snapshot(
     engine_state: dict,
     out_dir: Path,
     snapshot_ts: int,
-) -> tuple[list, dict]:
+) -> tuple[list, dict, list]:
     signals = analyze_snapshot(
         snapshot=snapshot,
         ewma_state=engine_state["ewma"],
@@ -417,7 +466,7 @@ def process_snapshot(
         logger.info(
             f"  [{ev['event'].upper():12}] {ev['alert_id']}  severity={sev}"
         )
-    return active_alerts, dashboard
+    return active_alerts, dashboard, events
 
 
 def run_watch(runtime: EngineRuntime, graph_dir: Path, interval: float):
@@ -452,6 +501,39 @@ def _send_json(handler: BaseHTTPRequestHandler, status: int, payload: dict | lis
     handler.wfile.write(encoded)
 
 
+def _send_sse_chunk(handler: BaseHTTPRequestHandler, event: str, data: dict) -> None:
+    handler.wfile.write(_format_sse(event, data))
+    handler.wfile.flush()
+
+
+def _serve_sse_stream(handler: BaseHTTPRequestHandler, runtime: EngineRuntime) -> None:
+    handler.send_response(200)
+    handler.send_header("Content-Type", "text/event-stream")
+    handler.send_header("Cache-Control", "no-cache")
+    handler.send_header("Connection", "keep-alive")
+    handler.send_header("Access-Control-Allow-Origin", "*")
+    handler.end_headers()
+
+    sub = runtime.sse_hub.subscribe()
+    try:
+        with runtime.lock:
+            initial = dict(runtime.latest_dashboard)
+        _send_sse_chunk(handler, "snapshot", initial)
+
+        while True:
+            try:
+                msg = sub.get(timeout=SSE_HEARTBEAT_S)
+            except queue.Empty:
+                handler.wfile.write(b": heartbeat\n\n")
+                handler.wfile.flush()
+                continue
+            _send_sse_chunk(handler, msg["event"], msg["data"])
+    except (BrokenPipeError, ConnectionResetError, OSError):
+        pass
+    finally:
+        runtime.sse_hub.unsubscribe(sub)
+
+
 def _make_api_handler(runtime: EngineRuntime):
     api_file = runtime.out_dir / OUTPUT_PERSON5
 
@@ -475,10 +557,14 @@ def _make_api_handler(runtime: EngineRuntime):
                 _send_json(self, 200, {
                     "status":   "ok",
                     "ingest":   INGEST_API_PATH,
+                    "stream":   STREAM_API_PATH,
                     "insights": PERSON5_API_PATH,
                     "alerts":   ALERTS_API_PATH,
                     "summary":  SUMMARY_API_PATH,
                 })
+                return
+            if route == STREAM_API_PATH:
+                _serve_sse_stream(self, runtime)
                 return
             if route == ALERTS_API_PATH:
                 dash = runtime.latest_dashboard
@@ -556,7 +642,7 @@ def start_api_server(
     logger.info(
         f"API http://0.0.0.0:{port}"
         f"  POST {INGEST_API_PATH}"
-        f"  GET {PERSON5_API_PATH} {ALERTS_API_PATH} {SUMMARY_API_PATH} {HEALTH_API_PATH}"
+        f"  GET {STREAM_API_PATH} {PERSON5_API_PATH} {ALERTS_API_PATH} {SUMMARY_API_PATH} {HEALTH_API_PATH}"
     )
     if blocking:
         try:
@@ -583,7 +669,7 @@ def run_once(graph_path: Path, out_dir: Path):
         "zone_history":    {},
         "total_snapshots": 0,
     }
-    _, _ = process_snapshot(snapshot, state_manager, engine_state, out_dir, snapshot_ts)
+    _, _, _ = process_snapshot(snapshot, state_manager, engine_state, out_dir, snapshot_ts)
     logger.info("Done.")
 
 

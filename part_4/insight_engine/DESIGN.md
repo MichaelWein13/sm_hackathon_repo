@@ -28,9 +28,10 @@ Person 3 (Movement Graph)
    alert_state.py  — lifecycle, hysteresis, memory
    narration.py    — message generation (LLM + templates)
         │
-        │  GET /analytics/insights  → Person 5 (flat)
-        │  GET /analytics/alerts    → Person 5 (lifecycle UI)
-        │  GET /analytics/summary   → Person 5 (headline)
+        │  GET /analytics/stream  → Person 5 (SSE, primary)
+        │  GET /analytics/alerts  → Person 5 (REST fallback)
+        │  GET /analytics/summary → Person 5 (headline)
+        │  GET /analytics/insights → Person 5 (legacy flat array)
         │  anomaly_reports/  (optional file backup)
         ▼
 Person 5 (Visualization)

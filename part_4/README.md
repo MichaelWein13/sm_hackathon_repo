@@ -95,6 +95,30 @@ python3 insight_engine/engine.py --serve --api-only --out-dir /shared/anomaly_re
 
 ### For Person 5 — my output is your input
 
+**Primary contract (live SSE):**
+
+| Method | Path | Response |
+|---|---|---|
+| `GET` | `/analytics/stream` | `text/event-stream` — live dashboard + lifecycle events |
+| `GET` | `/analytics/alerts` | Full alerts (REST fallback) |
+| `GET` | `/analytics/summary` | Global headline (REST fallback) |
+| `GET` | `/analytics/insights` | Flat insight array (legacy) |
+
+**SSE events** on `/analytics/stream`:
+
+| Event | When | Payload |
+|---|---|---|
+| `snapshot` | On connect | Full dashboard (`alerts`, `summary`, `headline`, `cycle`, …) |
+| `cycle_update` | After each ingest cycle | Same shape as `snapshot` |
+| `new`, `escalated`, `de_escalated`, `updated`, `resolved` | Lifecycle changes | Same lines as `events.ndjson` |
+
+```javascript
+const es = new EventSource('http://localhost:8765/analytics/stream');
+es.addEventListener('snapshot', (e) => { /* hydrate UI */ });
+es.addEventListener('cycle_update', (e) => { /* refresh UI */ });
+es.addEventListener('escalated', (e) => { /* animate severity change */ });
+```
+
 **Primary contract (matches `person4.out.yml`):**
 
 | Method | Path | Response |
@@ -194,7 +218,162 @@ Full trigger logic and mock demo mapping: [`insight_engine/DESIGN.md`](insight_e
 
 **Zone labels:** messages use `Sector N` (from `zone_N`). Highlight `zone_id` on the graph.
 
-**Wire-up:** `GET http://localhost:8765/analytics/insights` (see [`DEPLOYMENT.md`](../DEPLOYMENT.md)).
+**Wire-up:** `GET http://localhost:8765/analytics/stream` (see [`DEPLOYMENT.md`](../DEPLOYMENT.md)).
+
+---
+
+### Person 5 — migration guide (SSE)
+
+Person 4 now pushes live updates over **Server-Sent Events**. Replace polling with `EventSource`; keep REST as fallback.
+
+#### 1. Start Part 4 first
+
+```bash
+cd sm_hackathon_repo/part_4
+export NARRATION_BACKEND=disabled
+python3 insight_engine/engine.py --serve --api-only --out-dir ../../floorflow-io/anomaly_reports --fresh
+```
+
+Verify: `curl -s http://127.0.0.1:8765/health` must include `"stream": "/analytics/stream"`.
+
+#### 2. Proxy in dev (Create React App)
+
+In `package.json`:
+
+```json
+"proxy": "http://localhost:8765"
+```
+
+Then use a **relative** stream URL (`/analytics/stream`) so CRA forwards to Part 4.
+
+#### 3. Replace polling in `Api.js`
+
+Remove `setInterval` + repeated `fetch('/analytics/alerts')`. Add:
+
+```javascript
+const INSIGHTS_STREAM_URL = '/analytics/stream';
+
+function normalizeInsightsPayload(data) {
+  return {
+    snapshot_ts: data.snapshot_ts,
+    cycle: data.cycle,
+    elapsed_seconds: data.elapsed_seconds,
+    headline: data.headline ?? null,
+    alerts: data.alerts ?? [],
+    summary: data.summary ?? null,
+  };
+}
+
+export function subscribeToInsights({ onUpdate, onError }) {
+  let closed = false;
+  let source = new EventSource(INSIGHTS_STREAM_URL);
+
+  const apply = (raw) => {
+    if (!closed) onUpdate(normalizeInsightsPayload(JSON.parse(raw)));
+  };
+
+  source.addEventListener('snapshot', (e) => apply(e.data));
+  source.addEventListener('cycle_update', (e) => apply(e.data));
+
+  // Optional: animate lifecycle transitions
+  source.addEventListener('escalated', (e) => { /* JSON.parse(e.data) */ });
+  source.addEventListener('resolved', (e) => { /* remove alert_id from UI */ });
+
+  source.onerror = () => { if (!closed) onError?.(new Error('SSE error')); };
+
+  return () => { closed = true; source.close(); };
+}
+
+// Keep fetchInsights() as REST fallback when SSE fails
+```
+
+#### 4. Wire up in `App.js`
+
+```javascript
+import { subscribeToInsights, fetchInsights } from './Api';
+
+useEffect(() => {
+  let cancelled = false;
+
+  const unsubscribe = subscribeToInsights({
+    onUpdate: (payload) => {
+      if (!cancelled) { setInsights(payload); setLoading(false); }
+    },
+    onError: () => {
+      if (cancelled) return;
+      fetchInsights()
+        .then((data) => { if (!cancelled) { setInsights(data); setLoading(false); } })
+        .catch(() => { if (!cancelled) setLoading(false); });
+    },
+  });
+
+  return () => { cancelled = true; unsubscribe(); };
+}, []);
+```
+
+Delete any `INSIGHTS_POLL_MS` interval — SSE replaces it.
+
+#### 5. Payload shape (`snapshot` / `cycle_update`)
+
+Same fields as `GET /analytics/alerts` plus embedded `summary`:
+
+```json
+{
+  "snapshot_ts": 1718045312000,
+  "cycle": 7,
+  "elapsed_seconds": 420,
+  "headline": "WARNING — Sector 3 congestion forecast",
+  "summary": {
+    "zone_id": "global",
+    "insight_type": "situation_summary",
+    "severity": "warning",
+    "message": "3 active alerts across 4 observed sectors...",
+    "confidence": 1.0
+  },
+  "alerts": [
+    {
+      "id": "zone_3__congestion_forecast",
+      "zone_id": "zone_3",
+      "insight_type": "congestion_forecast",
+      "severity": "critical",
+      "message": "Sector 3 traffic has tripled over the last 90 seconds...",
+      "confidence": 0.87,
+      "first_seen_ts": 1718045100000,
+      "last_updated_ts": 1718045312000,
+      "cycle_count": 4
+    }
+  ]
+}
+```
+
+#### 6. Lifecycle events (optional UI polish)
+
+| SSE event | UI action |
+|---|---|
+| `new` | Add alert card, highlight zone on graph |
+| `escalated` | Change severity color (yellow → red) |
+| `de_escalated` | Soften severity |
+| `updated` | Refresh message text |
+| `resolved` | Remove from active list (alert no longer in `cycle_update.alerts`) |
+
+#### 7. Test without the React app
+
+```bash
+curl -sN http://127.0.0.1:8765/analytics/stream
+# In another terminal, feed mock data:
+python3 part_4/mock/generate_mock_snapshots.py --api-url http://127.0.0.1:8765/ingest/graph
+```
+
+You should see `event: snapshot`, then `event: new` / `event: escalated` / `event: cycle_update` as the demo runs.
+
+#### 8. REST fallback (still supported)
+
+If SSE is unavailable, poll these instead:
+
+```bash
+curl http://localhost:8765/analytics/alerts
+curl http://localhost:8765/analytics/summary
+```
 
 ---
 
@@ -216,7 +395,8 @@ Or two terminals manually — see [`DEPLOYMENT.md`](../DEPLOYMENT.md) and [`mock
 | Direction | Contract |
 |---|---|
 | **Input** (Person 3) | `POST /ingest/graph` |
-| **Output** (Person 5) | `GET /analytics/insights` |
+| **Output** (Person 5) | `GET /analytics/stream` (SSE, primary) |
+| **Output fallback** | `GET /analytics/alerts`, `/analytics/summary`, `/analytics/insights` |
 | **File backup** | `anomaly_reports/` (optional; written each cycle) |
 
 ```bash
@@ -235,7 +415,7 @@ Legacy file ingest: add `--watch-files --graph-dir /path/to/movement_graphs`
 
 ```
 insight_engine/
-  engine.py        — REST API + optional file watch
+  engine.py        — REST API + SSE stream + optional file watch
   detection.py     — signal extraction
   alert_state.py   — alert lifecycle
   narration.py     — message generation
