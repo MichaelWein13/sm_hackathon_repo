@@ -1,0 +1,148 @@
+{
+  "semantic_labels": {
+    "zone_10": "Primary Activity Zone A",
+    "zone_7": "Primary Activity Zone B",
+    "zone_2": "Secondary Hub A",
+    "zone_9": "Secondary Hub B",
+    "zone_8": "Secondary Hub C",
+    "zone_1": "Functional Niche A",
+    "zone_3": "Functional Niche B",
+    "zone_6": "Functional Niche C",
+    "zone_5": "Functional Niche D",
+    "zone_4": "Functional Niche E"
+  },
+  "explanations": {
+    "zone_10": {
+      "label": "Primary Activity Zone A",
+      "rationale": "Major activity center: 350 observations across 9 trajectories",
+      "confidence": "85.3% average assignment confidence",
+      "stability": "37.7% stable (low transition rate)"
+    },
+    "zone_7": {
+      "label": "Primary Activity Zone B",
+      "rationale": "Major activity center: 72 observations across 9 trajectories",
+      "confidence": "91.5% average assignment confidence",
+      "stability": "29.2% stable (low transition rate)"
+    },
+    "zone_2": {
+      "label": "Secondary Hub A",
+      "rationale": "Significant zone: 106 observations, well-separated from other clusters",
+      "confidence": "76.2% average assignment confidence",
+      "stability": "Stability score: 0.252"
+    },
+    "zone_9": {
+      "label": "Secondary Hub B",
+      "rationale": "Significant zone: 59 observations, well-separated from other clusters",
+      "confidence": "95.7% average assignment confidence",
+      "stability": "Stability score: 0.292"
+    },
+    "zone_8": {
+      "label": "Secondary Hub C",
+      "rationale": "Significant zone: 48 observations, well-separated from other clusters",
+      "confidence": "95.7% average assignment confidence",
+      "stability": "Stability score: 0.279"
+    },
+    "zone_1": {
+      "label": "Functional Niche A",
+      "rationale": "Distinct micro-zone: 32 observations with unique signal fingerprint",
+      "confidence": "100.0% high confidence despite smaller size",
+      "stability": "Appeared in 4 different trajectories"
+    },
+    "zone_3": {
+      "label": "Functional Niche B",
+      "rationale": "Distinct micro-zone: 36 observations with unique signal fingerprint",
+      "confidence": "100.0% high confidence despite smaller size",
+      "stability": "Appeared in 7 different trajectories"
+    },
+    "zone_6": {
+      "label": "Functional Niche C",
+      "rationale": "Distinct micro-zone: 30 observations with unique signal fingerprint",
+      "confidence": "100.0% high confidence despite smaller size",
+      "stability": "Appeared in 7 different trajectories"
+    },
+    "zone_5": {
+      "label": "Functional Niche D",
+      "rationale": "Distinct micro-zone: 40 observations with unique signal fingerprint",
+      "confidence": "95.2% high confidence despite smaller size",
+      "stability": "Appeared in 9 different trajectories"
+    },
+    "zone_4": {
+      "label": "Functional Niche E",
+      "rationale": "Distinct micro-zone: 71 observations with unique signal fingerprint",
+      "confidence": "65.9% high confidence despite smaller size",
+      "stability": "Appeared in 8 different trajectories"
+    }
+  },
+  "statistics": {
+    "zone_10": {
+      "size": 350,
+      "avg_confidence": 0.8527025714285715,
+      "stability_score": 0.32159068408163266,
+      "transition_rate": 0.6228571428571429,
+      "num_trajectories": 9
+    },
+    "zone_1": {
+      "size": 32,
+      "avg_confidence": 1.0,
+      "stability_score": 0.1875,
+      "transition_rate": 0.8125,
+      "num_trajectories": 4
+    },
+    "zone_8": {
+      "size": 48,
+      "avg_confidence": 0.9571229166666667,
+      "stability_score": 0.2791608506944444,
+      "transition_rate": 0.7083333333333334,
+      "num_trajectories": 9
+    },
+    "zone_2": {
+      "size": 106,
+      "avg_confidence": 0.7622311320754719,
+      "stability_score": 0.251680090779637,
+      "transition_rate": 0.6698113207547169,
+      "num_trajectories": 8
+    },
+    "zone_4": {
+      "size": 71,
+      "avg_confidence": 0.6585929577464789,
+      "stability_score": 0.14841531442174175,
+      "transition_rate": 0.7746478873239436,
+      "num_trajectories": 8
+    },
+    "zone_3": {
+      "size": 36,
+      "avg_confidence": 1.0,
+      "stability_score": 0.02777777777777779,
+      "transition_rate": 0.9722222222222222,
+      "num_trajectories": 7
+    },
+    "zone_9": {
+      "size": 59,
+      "avg_confidence": 0.9573135593220339,
+      "stability_score": 0.29206176386095944,
+      "transition_rate": 0.6949152542372882,
+      "num_trajectories": 9
+    },
+    "zone_7": {
+      "size": 72,
+      "avg_confidence": 0.9151763888888887,
+      "stability_score": 0.2669264467592592,
+      "transition_rate": 0.7083333333333334,
+      "num_trajectories": 9
+    },
+    "zone_5": {
+      "size": 40,
+      "avg_confidence": 0.9524874999999999,
+      "stability_score": 0.23812187499999998,
+      "transition_rate": 0.75,
+      "num_trajectories": 9
+    },
+    "zone_6": {
+      "size": 30,
+      "avg_confidence": 1.0,
+      "stability_score": 0.43333333333333335,
+      "transition_rate": 0.5666666666666667,
+      "num_trajectories": 7
+    }
+  }
+}
