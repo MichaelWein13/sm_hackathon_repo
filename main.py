@@ -128,18 +128,15 @@ class MovementGraphBuilder:
 
 # --- Test Data & Execution ---
 if __name__ == "__main__":
-    # Mock data strictly following Person 2's output contract
-    person_2_output = [
-        {"timestamp_ms": 1710000000000, "device_id": "person_1", "zone_id": "zone_1", "zone_confidence": 0.84},
-        {"timestamp_ms": 1710000040000, "device_id": "person_1", "zone_id": "zone_1", "zone_confidence": 0.90},
-        {"timestamp_ms": 1710000085000, "device_id": "person_1", "zone_id": "zone_2", "zone_confidence": 0.88},
-        {"timestamp_ms": 1710000150000, "device_id": "person_1", "zone_id": "zone_3", "zone_confidence": 0.92},
-        {"timestamp_ms": 1710000010000, "device_id": "person_2", "zone_id": "zone_1", "zone_confidence": 0.81},
-        {"timestamp_ms": 1710000200000, "device_id": "person_2", "zone_id": "zone_3", "zone_confidence": 0.89},
-    ]
+    # Open the file your friend uploaded (change the filename to match theirs!)
+    with open('/Users/arielmiron/Desktop/Hackathon/sm_hackathon_repo/person2_zone_discovery/outputs/assignments.json', 'r') as file:
+        person_2_output = json.load(file)
 
+    # The rest stays exactly the same
     builder = MovementGraphBuilder()
     final_graph = builder.build_graph(person_2_output)
 
-    # Print exactly matching Person 4's expected input
-    print(json.dumps(final_graph, indent=2))
+    with open('final_movement_graph.json', 'w') as out_file:
+        json.dump(final_graph, out_file, indent=2)
+
+    print("Graph successfully saved to final_movement_graph.json!")
