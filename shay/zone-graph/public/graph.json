@@ -73,12 +73,17 @@
                 {
                     "name": "chava",
                     " transition_count ": 180,
-                    " transition_probability ": 0.75
+                    " transition_probability ": 0.7
                 },
                 {
                     "name": "kitchen",
                     " transition_count ": 60,
                     " transition_probability ": 0.25
+                },
+                {
+                    "name": "practice room",
+                    " transition_count ": 12,
+                    " transition_probability ": 0.05
                 }
             ],
             "in_edges": [
@@ -251,6 +256,11 @@
                             {
                                 "name": "kitchen",
                                 " transition_count ": 6,
+                                " transition_probability ": 0.25
+                            },
+                            {
+                                "name": "practice room",
+                                " transition_count ": 12,
                                 " transition_probability ": 0.25
                             }
                         ],

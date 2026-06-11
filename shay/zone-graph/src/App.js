@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import { forceCollide } from 'd3-force';
 
-import { fetchGraphData } from './Api'; // Adjust casing to match your file
+import { fetchGraphData, fetchInsights } from './Api'; // Adjust casing to match your file
 
 
 export default function App() {
@@ -10,7 +10,11 @@ export default function App() {
   const [insights, setInsights] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [selectedAlertZone, setSelectedAlertZone] = useState(null);
+  const [highlightedAlertZone, setHighlightedAlertZone] = useState(null);
   const fgRef = useRef(); // 1. Reference to the graph to tweak its physics
+  const alertRefs = useRef({});
+  const highlightTimeoutRef = useRef(null);
 
   // Fetch data
   useEffect(() => {
@@ -25,38 +29,48 @@ export default function App() {
       });
   }, []);
 
-  // Subscribe to insight updates over WebSocket.
   useEffect(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const socket = new WebSocket(`${protocol}://${window.location.host}/analytics/insights`);
+    fetchInsights()
+      .then(insightResponse => setInsights(insightResponse))
+      .catch(err => {
+        console.error('Failed to load insights:', err);
+      });
+  }, []);
 
-    socket.addEventListener('open', () => {
-      console.log('[Insights socket] connected');
+  // Subscribe to insight updates over SSE.
+  useEffect(() => {
+    if (!window.EventSource) {
+      console.warn('SSE not supported by this browser');
+      return;
+    }
+
+    const source = new EventSource('/analytics/insights');
+
+    source.addEventListener('open', () => {
+      console.log('[Insights SSE] connected');
     });
 
-    socket.addEventListener('message', event => {
+    source.addEventListener('message', event => {
       try {
         const update = JSON.parse(event.data);
         if (update && typeof update === 'object') {
           setInsights(update);
         }
       } catch (err) {
-        console.error('[Insights socket] parse error:', err);
+        console.error('[Insights SSE] parse error:', err);
       }
     });
 
-    socket.addEventListener('error', err => {
-      console.error('[Insights socket] error:', err);
-    });
-
-    socket.addEventListener('close', () => {
-      console.warn('[Insights socket] connection closed');
+    source.addEventListener('error', err => {
+      if (source.readyState === EventSource.CLOSED) {
+        console.warn('[Insights SSE] connection closed');
+      } else {
+        console.error('[Insights SSE] error:', err);
+      }
     });
 
     return () => {
-      if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
-        socket.close();
-      }
+      source.close();
     };
   }, []);
 
@@ -65,6 +79,86 @@ export default function App() {
     warning: '#f1c40f',
     critical: '#e74c3c',
     resolving: '#5dade2'
+  };
+
+  const parseNumber = value => {
+    const n = typeof value === 'number' ? value : Number(value);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const safeGet = (obj, key) => {
+    if (!obj) return undefined;
+    return obj[key] ?? obj[` ${key} `] ?? obj[key.trim()];
+  };
+
+  const getEdgeMetric = (edge, field) => parseNumber(safeGet(edge, field));
+
+  const assignInitialLayout = (nodes, links, layoutDimensions) => {
+    if (!layoutDimensions || !layoutDimensions.width || !layoutDimensions.height) return;
+    const centerX = layoutDimensions.width / 2;
+    const centerY = layoutDimensions.height / 2;
+    const adjacency = new Map();
+    const degree = new Map();
+
+    nodes.forEach(node => {
+      adjacency.set(node.id, new Set());
+      degree.set(node.id, 0);
+    });
+
+    links.forEach(link => {
+      if (!link.source || !link.target) return;
+      const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+      const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+      if (!adjacency.has(sourceId) || !adjacency.has(targetId)) return;
+      adjacency.get(sourceId).add(targetId);
+      adjacency.get(targetId).add(sourceId);
+      degree.set(sourceId, (degree.get(sourceId) || 0) + 1);
+      degree.set(targetId, (degree.get(targetId) || 0) + 1);
+    });
+
+    const root = nodes.reduce((best, node) => {
+      const d = degree.get(node.id) || 0;
+      return !best || d > degree.get(best.id) ? node : best;
+    }, null);
+    if (!root) return;
+
+    const distances = new Map([[root.id, 0]]);
+    const queue = [root.id];
+    while (queue.length) {
+      const id = queue.shift();
+      const dist = distances.get(id);
+      adjacency.get(id)?.forEach(neighbor => {
+        if (!distances.has(neighbor)) {
+          distances.set(neighbor, dist + 1);
+          queue.push(neighbor);
+        }
+      });
+    }
+
+    const levels = new Map();
+    nodes.forEach(node => {
+      const dist = distances.get(node.id);
+      const level = typeof dist === 'number' ? dist : Math.max(...distances.values()) + 1;
+      if (!levels.has(level)) levels.set(level, []);
+      levels.get(level).push(node);
+    });
+
+    levels.forEach((group, level) => {
+      if (level === 0) {
+        group.forEach(node => {
+          node.x = centerX;
+          node.y = centerY;
+        });
+        return;
+      }
+      const radius = ROOM_SIZE * 4 * level;
+      const angleStep = (Math.PI * 2) / group.length;
+      group.forEach((node, idx) => {
+        const angle = idx * angleStep;
+        node.x = centerX + Math.cos(angle) * radius;
+        node.y = centerY + Math.sin(angle) * radius;
+      });
+    });
   };
 
   const capitalizeWords = text =>
@@ -80,9 +174,32 @@ export default function App() {
     return map;
   }, [insights]);
 
+  const [dimensions, setDimensions] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight
+  });
+
+  const ROOM_SIZE = 60;
+
   // Transform data
   const graphData = useMemo(() => {
     if (!rawData || !rawData.zones) return { nodes: [], links: [] };
+
+    const timeWindows = rawData.time_windows ?? rawData[' time_windows '] ?? [];
+    const latestWindow = timeWindows.reduce((best, window) => {
+      const start = getEdgeMetric(window, 'window_start_ms');
+      if (!best) return window;
+      const bestStart = getEdgeMetric(best, 'window_start_ms');
+      return start > bestStart ? window : best;
+    }, null);
+
+    const windowZoneMap = new Map();
+    const windowGraph = latestWindow ? safeGet(latestWindow, 'window_graph') : null;
+    if (windowGraph) {
+      (windowGraph.nodes ?? []).forEach(zone => {
+        windowZoneMap.set(zone.name, zone);
+      });
+    }
 
     const nodes = rawData.zones.map(zone => {
       const alert = alertMap.get(zone.name);
@@ -97,25 +214,54 @@ export default function App() {
     });
 
     const links = [];
+    const edgeSet = new Set();
     rawData.zones.forEach(zone => {
       if (zone.out_edges) {
         zone.out_edges.forEach(edge => {
+          edgeSet.add(`${zone.name}||${edge.name}`);
+        });
+      }
+    });
+
+    rawData.zones.forEach(zone => {
+      if (zone.out_edges) {
+        const windowZone = windowZoneMap.get(zone.name);
+        zone.out_edges.forEach(edge => {
+          const currentCount = getEdgeMetric(edge, 'transition_count');
+          const currentProbability = getEdgeMetric(edge, 'transition_probability');
+
+          let windowCount = 0;
+          let windowProbability = 0;
+          if (windowZone && windowZone.out_edges) {
+            const matching = windowZone.out_edges.find(wEdge => wEdge.name === edge.name);
+            if (matching) {
+              windowCount = getEdgeMetric(matching, 'transition_count');
+              windowProbability = getEdgeMetric(matching, 'transition_probability');
+            }
+          }
+
+          const transitionCount = windowCount || currentCount;
+          const transitionProbability = windowProbability || currentProbability;
+          const flowScore = transitionCount * Math.max(transitionProbability, 0.1);
+          const reverseKey = `${edge.name}||${zone.name}`;
+          const hasReverse = edgeSet.has(reverseKey);
+          const offset = hasReverse ? (zone.name.localeCompare(edge.name) < 0 ? 4 : -4) : 0;
+
           links.push({
             source: zone.name,
-            target: edge.name
+            target: edge.name,
+            transition_count: transitionCount,
+            transition_probability: transitionProbability,
+            flowScore,
+            offset,
           });
         });
       }
     });
 
+    assignInitialLayout(nodes, links, dimensions);
     return { nodes, links };
-  }, [rawData, alertMap]);
-
-  // Handle mobile responsiveness
-  const [dimensions, setDimensions] = useState({
-    width: window.innerWidth,
-    height: window.innerHeight
-  });
+  }, [rawData, alertMap, dimensions]);
 
   useEffect(() => {
     const handleResize = () => setDimensions({ width: window.innerWidth, height: window.innerHeight });
@@ -123,7 +269,32 @@ export default function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const ROOM_SIZE = 60;
+  useEffect(() => {
+    if (!selectedAlertZone) return;
+
+    setSidebarOpen(true);
+    const node = alertRefs.current[selectedAlertZone];
+    if (node) {
+      node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    setHighlightedAlertZone(selectedAlertZone);
+    if (highlightTimeoutRef.current) {
+      clearTimeout(highlightTimeoutRef.current);
+    }
+    highlightTimeoutRef.current = setTimeout(() => {
+      setHighlightedAlertZone(null);
+      highlightTimeoutRef.current = null;
+    }, 1400);
+
+    return () => {
+      if (highlightTimeoutRef.current) {
+        clearTimeout(highlightTimeoutRef.current);
+        highlightTimeoutRef.current = null;
+      }
+    };
+  }, [selectedAlertZone]);
+
   const alerts = insights?.alerts ?? [];
   const summary = insights?.summary;
 
@@ -203,8 +374,22 @@ export default function App() {
             ) : (
               alerts.map(alert => {
                 const badgeColor = severityColorMap[alert.severity] || '#95a5a6';
+                const isSelected = selectedAlertZone === alert.zone_id;
+                const isHighlighted = highlightedAlertZone === alert.zone_id;
                 return (
-                  <div key={alert.id} style={{ marginBottom: 14, padding: '14px 16px', borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                  <div
+                    key={alert.id}
+                    ref={el => { if (el) alertRefs.current[alert.zone_id] = el; }}
+                    style={{
+                      marginBottom: 14,
+                      padding: '14px 16px',
+                      borderRadius: 14,
+                      backgroundColor: isHighlighted ? 'rgba(46, 204, 113, 0.14)' : 'rgba(255,255,255,0.04)',
+                      border: isSelected ? '1px solid #2ecc71' : '1px solid transparent',
+                      transition: 'background-color 220ms ease, border-color 220ms ease',
+                      boxShadow: isHighlighted ? '0 0 0 2px rgba(46, 204, 113, 0.16)' : 'none'
+                    }}
+                  >
                     <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
                       <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: badgeColor, display: 'inline-block', marginRight: 10 }} />
                       <div>
@@ -228,29 +413,21 @@ export default function App() {
         height={dimensions.height}
         graphData={graphData}
 
-        // Hide the default link stroke, but keep links in the render pipeline
-        linkWidth={0}
-        linkCanvasObjectMode={() => 'before'}
-        linkCanvasObject={(link, ctx, globalScale) => {
-          const source = typeof link.source === 'object'
-            ? link.source
-            : graphData.nodes.find(n => n.id === link.source);
-          const target = typeof link.target === 'object'
-            ? link.target
-            : graphData.nodes.find(n => n.id === link.target);
-
-          if (!source || !target || source.x == null || target.x == null) return;
-
-          ctx.save();
-          ctx.beginPath();
-          ctx.strokeStyle = '#95a5a6';
-          ctx.lineWidth = 2;
-          ctx.moveTo(source.x, source.y);
-          ctx.lineTo(target.x, target.y);
-          ctx.stroke();
-          ctx.restore();
-        }}
+        linkColor={() => '#95a5a6'}
+        linkWidth={2}
+        linkCurvature={0}
+        linkDirectionalParticles={link => Math.min(8, Math.max(1, Math.round((link.flowScore || 1) / 40)))}
+        linkDirectionalParticleWidth={6}
+        linkDirectionalParticleColor={link => link.flowScore > 40 ? '#ff4136' : '#2ecc40'}
+        linkDirectionalParticleSpeed={link => 0.0008 + Math.min(0.006, (link.transition_probability || 0.1) * 0.0035 + (link.transition_count || 0) / 1600)}
+        linkDirectionalParticleOffset={link => link.offset || 0}
+        linkDirectionalArrowLength={0}
         nodeLabel={node => node.alertType ? node.alertType : node.name}
+        onNodeClick={node => {
+          if (node.alertType) {
+            setSelectedAlertZone(node.id);
+          }
+        }}
 
         // 3. Custom Canvas Rendering
         nodeCanvasObject={(node, ctx, globalScale) => {
@@ -296,7 +473,7 @@ export default function App() {
           ctx.restore();
 
           if (node.alertSeverity && node.alertSeverity !== 'resolved') {
-            const iconRadius = 4 / globalScale;
+            const iconRadius = 6 / globalScale;
             const iconX = node.x;
             const iconY = rectY - iconRadius - 4 / globalScale;
             const badgeColor = node.alertSeverityColor || '#7f8c8d';
@@ -305,13 +482,13 @@ export default function App() {
             ctx.beginPath();
             ctx.fillStyle = badgeColor;
             ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 1 / globalScale;
+            ctx.lineWidth = 1.5 / globalScale;
             ctx.arc(iconX, iconY, iconRadius, 0, 2 * Math.PI);
             ctx.fill();
             ctx.stroke();
 
             ctx.fillStyle = '#ffffff';
-            ctx.font = `${8 / globalScale}px Sans-Serif`;
+            ctx.font = `${9 / globalScale}px Sans-Serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText('!', iconX, iconY + 0.5 / globalScale);
