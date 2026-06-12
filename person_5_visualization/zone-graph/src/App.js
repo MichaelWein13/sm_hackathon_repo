@@ -10,6 +10,7 @@ export default function App() {
   const [rawData, setRawData] = useState(null);
   const [insights, setInsights] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [graphSource, setGraphSource] = useState('static');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedAlertZone, setSelectedAlertZone] = useState(null);
   const [highlightedAlertZone, setHighlightedAlertZone] = useState(null);
@@ -57,12 +58,12 @@ export default function App() {
   }, [graphSource]);
 
   useEffect(() => {
-    fetchInsights()
+    fetchInsights(graphSource)
       .then(insightResponse => setInsights(insightResponse))
       .catch(err => {
         console.error('Failed to load insights:', err);
       });
-  }, []);
+  }, [graphSource]);
 
   // Subscribe to insight updates over SSE.
   useEffect(() => {
@@ -210,7 +211,46 @@ export default function App() {
 
   // Transform data
   const graphData = useMemo(() => {
-    if (!rawData || !rawData.zones) return { nodes: [], links: [] };
+    if (!rawData) return { nodes: [], links: [] };
+
+    const createNode = zoneId => {
+      const alert = alertMap.get(zoneId);
+      const severity = alert?.severity;
+      return {
+        id: zoneId,
+        name: zoneId.toUpperCase(),
+        alertType: alert?.insight_type,
+        alertSeverity: severity,
+        alertSeverityColor: severity ? severityColorMap[severity] : undefined,
+      };
+    };
+
+    if (rawData.nodes && rawData.edges) {
+      const nodes = rawData.nodes.map(createNode);
+      const links = rawData.edges
+        .map(edge => {
+          const source = edge.from_zone_id ?? edge.source ?? edge.from;
+          const target = edge.to_zone_id ?? edge.target ?? edge.to;
+          if (!source || !target) return null;
+
+          const transitionCount = getEdgeMetric(edge, 'transition_count');
+          const transitionProbability = getEdgeMetric(edge, 'transition_probability');
+          return {
+            source,
+            target,
+            transition_count: transitionCount,
+            transition_probability: transitionProbability,
+            flowScore: transitionCount * Math.max(transitionProbability, 0.1),
+            offset: 0,
+          };
+        })
+        .filter(Boolean);
+
+      assignInitialLayout(nodes, links, dimensions);
+      return { nodes, links };
+    }
+
+    if (!rawData.zones) return { nodes: [], links: [] };
 
     const timeWindows = rawData.time_windows ?? rawData[' time_windows '] ?? [];
     const latestWindow = timeWindows.reduce((best, window) => {
@@ -228,17 +268,7 @@ export default function App() {
       });
     }
 
-    const nodes = rawData.zones.map(zone => {
-      const alert = alertMap.get(zone.name);
-      const severity = alert?.severity;
-      return {
-        id: zone.name,
-        name: zone.name.toUpperCase(),
-        alertType: alert?.insight_type,
-        alertSeverity: severity,
-        alertSeverityColor: severity ? severityColorMap[severity] : undefined,
-      };
-    });
+    const nodes = rawData.zones.map(zone => createNode(zone.name));
 
     const links = [];
     const edgeSet = new Set();

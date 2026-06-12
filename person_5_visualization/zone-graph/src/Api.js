@@ -2,9 +2,10 @@
  * Fetches the zone graph data and time windows.
  * Currently reads from a local JSON file to mock an API response.
  *
+ * @param {string} source - Data source mode, either 'static' or 'endpoint'.
  * @returns {Promise<Object>} The parsed JSON data containing zones and time windows.
  */
-export async function fetchGraphData() {
+export async function fetchGraphData(source = 'static') {
   try {
     if (source === 'static') {
       const response = await fetch('/final_movement_graph.json');
@@ -33,9 +34,10 @@ export async function fetchGraphData() {
  * Fetches the generated predictive insights and risk assessments.
  * Currently reads from a local JSON file to mock an API response.
  *
+ * @param {string} source - Data source mode, either 'static' or 'endpoint'.
  * @returns {Promise<Array>} The parsed JSON array containing zone insights.
  */
-export async function fetchInsights() {
+export async function fetchInsights(source = 'static') {
   try {
     if (source === 'static') {
       const response = await fetch('/insights1.json');
