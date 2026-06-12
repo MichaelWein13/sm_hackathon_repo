@@ -4,6 +4,7 @@ import { forceCollide } from 'd3-force';
 
 import { fetchGraphData, fetchInsights } from './Api'; // Adjust casing to match your file
 
+const GRAPH_POLL_INTERVAL_MS = 20000;
 
 export default function App() {
   const [rawData, setRawData] = useState(null);
@@ -18,16 +19,42 @@ export default function App() {
 
   // Fetch data
   useEffect(() => {
-    fetchGraphData()
-      .then(graphResponse => {
-        setRawData(graphResponse);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error("Failed to load graph data:", err);
-        setLoading(false);
-      });
-  }, []);
+    let timerId;
+    let active = true;
+
+    const loadGraph = () => {
+      if (!active) return;
+      if (graphSource === 'static') {
+        setLoading(true);
+      }
+
+      fetchGraphData(graphSource)
+        .then(graphResponse => {
+          if (!active) return;
+          setRawData(graphResponse);
+          setLoading(false);
+        })
+        .catch(err => {
+          if (!active) return;
+          console.error("Failed to load graph data:", err);
+          setRawData(null);
+          setLoading(false);
+        })
+        .finally(() => {
+          if (!active) return;
+          timerId = window.setTimeout(loadGraph, GRAPH_POLL_INTERVAL_MS);
+        });
+    };
+
+    loadGraph();
+
+    return () => {
+      active = false;
+      if (timerId) {
+        window.clearTimeout(timerId);
+      }
+    };
+  }, [graphSource]);
 
   useEffect(() => {
     fetchInsights()
@@ -278,14 +305,21 @@ export default function App() {
       node.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
+    const graphNode = graphData.nodes.find(n => n.id === selectedAlertZone);
+    if (graphNode && fgRef.current && typeof graphNode.x === 'number' && typeof graphNode.y === 'number') {
+      fgRef.current.centerAt(graphNode.x, graphNode.y, 500);
+      fgRef.current.zoom(3, 500);
+    }
+
     setHighlightedAlertZone(selectedAlertZone);
     if (highlightTimeoutRef.current) {
       clearTimeout(highlightTimeoutRef.current);
     }
     highlightTimeoutRef.current = setTimeout(() => {
       setHighlightedAlertZone(null);
+      setSelectedAlertZone(null);
       highlightTimeoutRef.current = null;
-    }, 1400);
+    }, 3000);
 
     return () => {
       if (highlightTimeoutRef.current) {
@@ -293,7 +327,7 @@ export default function App() {
         highlightTimeoutRef.current = null;
       }
     };
-  }, [selectedAlertZone]);
+  }, [selectedAlertZone, graphData]);
 
   const alerts = insights?.alerts ?? [];
   const summary = insights?.summary;
@@ -380,7 +414,9 @@ export default function App() {
                   <div
                     key={alert.id}
                     ref={el => { if (el) alertRefs.current[alert.zone_id] = el; }}
+                    onClick={() => setSelectedAlertZone(alert.zone_id)}
                     style={{
+                      cursor: 'pointer',
                       marginBottom: 14,
                       padding: '14px 16px',
                       borderRadius: 14,
@@ -492,6 +528,14 @@ export default function App() {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText('!', iconX, iconY + 0.5 / globalScale);
+            ctx.restore();
+          }
+
+          if (node.id === selectedAlertZone) {
+            ctx.save();
+            ctx.strokeStyle = 'rgba(46, 204, 113, 0.95)';
+            ctx.lineWidth = 4 / globalScale;
+            ctx.strokeRect(rectX - 2 / globalScale, rectY - 2 / globalScale, rectWidth + 4 / globalScale, rectHeight + 4 / globalScale);
             ctx.restore();
           }
 

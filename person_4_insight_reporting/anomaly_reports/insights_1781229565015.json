@@ -1,0 +1,75 @@
+{
+  "snapshot_ts": 1781229565015,
+  "cycle": 1,
+  "elapsed_seconds": 0,
+  "summary": {
+    "zone_id": "global",
+    "insight_type": "situation_summary",
+    "severity": "detecting",
+    "message": "1 active alert across 1 observed sector. Patterns emerging in Sector alley_middle. System has been running for 0s across 1 snapshots.",
+    "confidence": 1.0,
+    "triage": {
+      "act_now": [],
+      "watch": [
+        "zone_alley_middle__bottleneck_risk"
+      ],
+      "improving": []
+    },
+    "action_headline": "1 situation(s) to watch \u2014 no immediate action required"
+  },
+  "alerts": [
+    {
+      "id": "zone_alley_middle__bottleneck_risk",
+      "zone_id": "zone_alley_middle",
+      "insight_type": "bottleneck_risk",
+      "severity": "detecting",
+      "confidence": 0.805,
+      "message": "Sector alley_middle is absorbing increasing inbound traffic in the current observation. 590 movements in against only 27 out \u2014 traffic is stacking up. Situation developing \u2014 continue monitoring.",
+      "first_seen_ts": 1781229565015,
+      "last_updated_ts": 1781229565015,
+      "cycle_count": 1,
+      "because": "2 approach paths (Sector alley_top, Sector alley_bottom) converging on one sector",
+      "evidence": {
+        "inbound_count": 590,
+        "outbound_count": 27,
+        "inbound_rate_per_min": 39.3,
+        "outbound_rate_per_min": 1.8,
+        "accumulation_ratio": 16.39,
+        "capacity_pct_estimate": 95,
+        "dwell_seconds": 2100,
+        "traffic_growth_x": null,
+        "windows_observed": 0,
+        "cycle_count": 1,
+        "convergence_sources": [
+          "zone_alley_top",
+          "zone_alley_bottom"
+        ],
+        "convergence_source_count": 2,
+        "from_zone": "zone_alley_bottom",
+        "transition_count": 0
+      },
+      "actions": [
+        {
+          "id": "monitor_zone_alley_middle_watch_convergence_pressure_at_sector_all",
+          "priority": 3,
+          "verb": "monitor",
+          "label": "Watch convergence pressure at Sector alley_middle",
+          "zone_id": "zone_alley_middle",
+          "urgency": "watch",
+          "rationale": "2 approach paths (Sector alley_top, Sector alley_bottom) converging on Sector alley_middle",
+          "confidence": 0.805
+        }
+      ],
+      "dependencies": [
+        {
+          "type": "convergence",
+          "source_zones": [
+            "zone_alley_top",
+            "zone_alley_bottom"
+          ],
+          "implication": "2 sectors feeding Sector alley_middle \u2014 choke point may overwhelm before feeders show stress"
+        }
+      ]
+    }
+  ]
+}

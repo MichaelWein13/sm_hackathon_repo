@@ -5,7 +5,6 @@ from collections import defaultdict
 from typing import Any, Dict, List, Tuple
 from fastapi import FastAPI, BackgroundTasks
 import uvicorn
-import requests
 
 import numpy as np
 import hdbscan

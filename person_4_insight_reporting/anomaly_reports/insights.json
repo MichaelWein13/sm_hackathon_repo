@@ -1,0 +1,8 @@
+[
+  {
+    "zone_id": "zone_alley_middle",
+    "insight_type": "bottleneck_risk",
+    "message": "Sector alley_middle is absorbing increasing inbound traffic in the current observation. 590 movements in against only 27 out \u2014 traffic is stacking up. Situation developing \u2014 continue monitoring.",
+    "confidence": 0.805
+  }
+]
