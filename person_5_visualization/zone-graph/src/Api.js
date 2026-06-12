@@ -6,6 +6,7 @@
  */
 export async function fetchGraphData() {
   try {
+<<<<<<< Updated upstream
     // Fetch graph data from the API endpoint instead of the local mock graph.json.
     const response = await fetch('/analytics/graph', {
       method: 'POST',
@@ -13,6 +14,18 @@ export async function fetchGraphData() {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({})
+=======
+    if (source === 'static') {
+      const response = await fetch('/final_movement_graph.json');
+      if (!response.ok) {
+        throw new Error(`Failed to load static graph JSON: HTTP status ${response.status}`);
+      }
+      return await response.json();
+    }
+
+    const response = await fetch('http://localhost:8001/graph', {
+      method: 'GET'
+>>>>>>> Stashed changes
     });
 
     if (!response.ok) {
@@ -34,9 +47,20 @@ export async function fetchGraphData() {
  */
 export async function fetchInsights() {
   try {
+<<<<<<< Updated upstream
+=======
+    if (source === 'static') {
+      const response = await fetch('/insights1.json');
+      if (!response.ok) {
+        throw new Error(`Failed to load static insights JSON: HTTP status ${response.status}`);
+      }
+      return await response.json();
+    }
+
+>>>>>>> Stashed changes
     // Fetch insight data from the analytics endpoint.
     // The same endpoint is also used for SSE subscriptions in App.js.
-    const response = await fetch('/analytics/insights');
+    const response = await fetch('http://localhost:8765/analytics/insights');
 
     if (!response.ok) {
       throw new Error(`Failed to fetch insights: HTTP status ${response.status}`);

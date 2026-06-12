@@ -155,10 +155,27 @@ def send_to_node(target_url: str, target_name: str, graph_data: dict):
     except requests.exceptions.ConnectionError:
         print(f"⚠️ ERROR: Could not connect to {target_name}. Is their server running?")
 
+<<<<<<< Updated upstream
 # --- THE LISTENING DOOR FOR PERSON 2 ---
 @app.post("/receive_assignments")
 def receive_from_person_2(person_2_output: list, background_tasks: BackgroundTasks):
     print(f"\n--- Incoming data! Received {len(person_2_output)} observations from Person 2. ---")
+=======
+
+# --- ENDPOINT 1: THE REAL PIPELINE (Person 3 Reads Person 2 Data from Local File) ---
+@app.post("/receive_assignments")
+def receive_from_person_2(background_tasks: BackgroundTasks):
+    global LATEST_GRAPH_DATA
+    input_path = "person3_input.json"
+
+    if not os.path.exists(input_path):
+        return {"error": f"Could not find '{input_path}'. Place the file next to this service and retry."}
+
+    with open(input_path, "r") as f:
+        person_2_output = json.load(f)
+
+    print(f"\n--- Incoming LOCAL data! Loaded {len(person_2_output)} observations from {input_path}. ---")
+>>>>>>> Stashed changes
 
     # 1. Build the graph immediately
     final_graph = builder.build_graph(person_2_output)
@@ -171,9 +188,56 @@ def receive_from_person_2(person_2_output: list, background_tasks: BackgroundTas
     background_tasks.add_task(send_to_node, PERSON_4_URL, "Person 4", final_graph)
     background_tasks.add_task(send_to_node, PERSON_5_URL, "Person 5", final_graph)
 
+<<<<<<< Updated upstream
     # 3. Instantly reply to Person 2
     return {"status": "Success! Graph built and forwarded to Persons 4 and 5."}
 
+=======
+    return {"status": "Success! Graph built from local file and forwarded to Persons 4 and 5."}
+
+
+# --- 🌟 NEW ENDPOINT: THE LOCAL SIMULATOR (Read from person3_input.json) ---
+@app.get("/simulate_person_2")
+def simulate_local_data_load(background_tasks: BackgroundTasks):
+    """Reads person3_input.json from the folder and pretends Person 2 just sent it."""
+    global LATEST_GRAPH_DATA
+    input_path = "person3_input.json"
+
+    if not os.path.exists(input_path):
+        return {"error": f"Could not find '{input_path}' in your folder. Make sure you placed it next to this service."}
+
+    with open(input_path, "r") as f:
+        person_2_output = json.load(f)
+
+    print(f"\n--- 🤖 SIMULATOR TRIGGERED! Loaded {len(person_2_output)} observations locally from {input_path}. ---")
+
+    final_graph = builder.build_graph(person_2_output)
+    LATEST_GRAPH_DATA = final_graph
+
+    with open('final_movement_graph.json', 'w') as out_file:
+        json.dump(final_graph, out_file, indent=2)
+
+    background_tasks.add_task(send_to_node, PERSON_4_URL, "Person 4", final_graph)
+    background_tasks.add_task(send_to_node, PERSON_5_URL, "Person 5", final_graph)
+
+    return {
+        "status": "Local Simulation Complete",
+        "message": f"Successfully loaded {len(person_2_output)} records from {input_path} and forwarded to the team."
+    }
+
+
+# --- ENDPOINT 3: PERSON 5 PULLS DATA FROM HERE ---
+@app.get("/graph")
+def send_to_person_5():
+    print("Person 5 just requested the latest graph data!")
+
+    if not LATEST_GRAPH_DATA:
+        return {"status": "Waiting on data", "message": "The graph has not been built yet. Please wait for Person 2."}
+
+    return LATEST_GRAPH_DATA
+
+
+>>>>>>> Stashed changes
 if __name__ == "__main__":
     print("Starting Person 3 Pipeline Node...")
     uvicorn.run(app, host="0.0.0.0", port=8001)

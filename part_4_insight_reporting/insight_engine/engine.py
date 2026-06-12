@@ -49,6 +49,7 @@ INPUT_GLOB       = "*.json"           # matches any JSON file in movement_graphs
 OUTPUT_SNAPSHOT  = "insights_{ts}.json"
 OUTPUT_EVENTS    = "events.ndjson"
 OUTPUT_PERSON5   = "insights_api.json"  # Person 5: flat array, always latest
+OUTPUT_PERSON5_ALIAS = "insights.json"  # Alias for systems expecting insights.json
 INGEST_API_PATH  = "/ingest/graph"      # Person 3: POST movement graph snapshot
 PERSON5_API_PATH = "/analytics/insights"  # Person 5: flat ZoneInsight array (legacy)
 ALERTS_API_PATH  = "/analytics/alerts"    # Person 5: full alerts + severity/lifecycle
@@ -276,6 +277,7 @@ def _write_person5_api(out_dir: Path, alerts: list):
     """Person 5 contract: flat array of {zone_id, insight_type, message, confidence}."""
     payload = [_alert_to_person5_dict(a) for a in alerts]
     _atomic_write(out_dir / OUTPUT_PERSON5, json.dumps(payload, indent=2))
+    _atomic_write(out_dir / OUTPUT_PERSON5_ALIAS, json.dumps(payload, indent=2))
 
 
 def _append_events(out_dir: Path, events: list):
